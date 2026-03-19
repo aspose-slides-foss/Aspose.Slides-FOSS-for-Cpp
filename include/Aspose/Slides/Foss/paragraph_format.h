@@ -1,0 +1,151 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Aspose Pty Ltd
+
+#pragma once
+
+#include <cmath>
+#include <functional>
+#include <limits>
+#include <string_view>
+
+#include <Aspose/Slides/Foss/bullet_format.h>
+#include <Aspose/Slides/Foss/font_alignment.h>
+#include <Aspose/Slides/Foss/i_paragraph_format.h>
+#include <Aspose/Slides/Foss/nullable_bool.h>
+#include <Aspose/Slides/Foss/portion_format.h>
+#include <Aspose/Slides/Foss/text_alignment.h>
+#include <pugixml.hpp>
+
+namespace Aspose::Slides::Foss {
+
+/// Insert a child element into a `<a:pPr>` node at the correct OOXML schema position.
+/// @param ppr The `<a:pPr>` element node.
+/// @param tag The qualified child element tag (e.g., "a:lnSpc").
+/// @return The newly inserted child node.
+pugi::xml_node ppr_insert_child(pugi::xml_node ppr, std::string_view tag);
+
+/// Represents paragraph formatting properties.
+class ParagraphFormat final : public IParagraphFormat {
+public:
+    ParagraphFormat() = default;
+
+    /// Returns bullet format of the paragraph. Read-only.
+    [[nodiscard]] IBulletFormat& bullet() override { return bullet_; }
+    [[nodiscard]] const IBulletFormat& bullet() const override { return bullet_; }
+
+    /// Returns the paragraph depth.
+    [[nodiscard]] int depth() const override { return depth_; }
+    /// Sets the paragraph depth.
+    void set_depth(int value) override { depth_ = value; }
+
+    /// Returns the text alignment.
+    [[nodiscard]] TextAlignment alignment() const override;
+    /// Sets the text alignment.
+    void set_alignment(TextAlignment value) override;
+
+    /// Returns the space within the paragraph (positive=%, negative=points).
+    [[nodiscard]] double space_within() const override { return space_within_; }
+    void set_space_within(double value) override { space_within_ = value; }
+
+    /// Returns the space before the paragraph.
+    [[nodiscard]] double space_before() const override { return space_before_; }
+    void set_space_before(double value) override { space_before_ = value; }
+
+    /// Returns the space after the paragraph.
+    [[nodiscard]] double space_after() const override { return space_after_; }
+    void set_space_after(double value) override { space_after_ = value; }
+
+    /// Returns whether east asian line break is enabled.
+    [[nodiscard]] NullableBool east_asian_line_break() const override { return east_asian_line_break_; }
+    void set_east_asian_line_break(NullableBool value) override { east_asian_line_break_ = value; }
+
+    /// Returns whether text is right-to-left.
+    [[nodiscard]] NullableBool right_to_left() const override { return right_to_left_; }
+    void set_right_to_left(NullableBool value) override { right_to_left_ = value; }
+
+    /// Returns whether latin line break is enabled.
+    [[nodiscard]] NullableBool latin_line_break() const override { return latin_line_break_; }
+    void set_latin_line_break(NullableBool value) override { latin_line_break_ = value; }
+
+    /// Returns whether hanging punctuation is enabled.
+    [[nodiscard]] NullableBool hanging_punctuation() const override { return hanging_punctuation_; }
+    void set_hanging_punctuation(NullableBool value) override { hanging_punctuation_ = value; }
+
+    /// Returns the left margin in points. NaN = undefined.
+    [[nodiscard]] double margin_left() const override { return margin_left_; }
+    void set_margin_left(double value) override { margin_left_ = value; }
+
+    /// Returns the right margin in points. NaN = undefined.
+    [[nodiscard]] double margin_right() const override { return margin_right_; }
+    void set_margin_right(double value) override { margin_right_ = value; }
+
+    /// Returns the indent in points. NaN = undefined.
+    [[nodiscard]] double indent() const override { return indent_; }
+    void set_indent(double value) override { indent_ = value; }
+
+    /// Returns the default tab size in points. NaN = undefined.
+    [[nodiscard]] double default_tab_size() const override { return default_tab_size_; }
+    void set_default_tab_size(double value) override { default_tab_size_ = value; }
+
+    /// Returns the font alignment.
+    [[nodiscard]] FontAlignment font_alignment() const override { return font_alignment_; }
+    void set_font_alignment(FontAlignment value) override { font_alignment_ = value; }
+
+    /// Returns default portion format of a paragraph. Read-only.
+    [[nodiscard]] PortionFormat& default_portion_format() override { return default_portion_format_; }
+    [[nodiscard]] const PortionFormat& default_portion_format() const override { return default_portion_format_; }
+
+    // -- XML-backed internal API ------------------------------------------
+
+    /// Initialize from an existing `<a:pPr>` XML node.
+    /// @param ppr_element The `<a:pPr>` pugixml node.
+    /// @param save_callback Callback to persist changes (e.g., SlidePart::save).
+    void init_internal(pugi::xml_node ppr_element,
+                       std::function<void()> save_callback);
+
+    /// Persist changes via the save callback.
+    void save();
+
+    /// Read a NullableBool from a pPr attribute.
+    [[nodiscard]] NullableBool get_nullable_bool_attr(std::string_view attr) const;
+
+    /// Write a NullableBool to a pPr attribute.
+    void set_nullable_bool_attr(std::string_view attr, NullableBool value);
+
+    /// Read spacing from a child element (lnSpc, spcBef, spcAft).
+    /// Positive return = percentage, negative return = points. NaN = undefined.
+    [[nodiscard]] double get_spacing(std::string_view tag) const;
+
+    /// Write spacing to a child element.
+    /// Positive value = percentage (spcPct), negative = points (spcPts). NaN removes.
+    void set_spacing(std::string_view tag, double value);
+
+    /// Read an EMU-based attribute and convert to points. NaN = undefined.
+    [[nodiscard]] double get_emu_attr(std::string_view attr) const;
+
+    /// Write a point value as an EMU attribute. NaN removes the attribute.
+    void set_emu_attr(std::string_view attr, double value);
+
+private:
+    BulletFormat bullet_;
+    TextAlignment alignment_ = TextAlignment::NOT_DEFINED;
+    double space_within_ = std::numeric_limits<double>::quiet_NaN();
+    double space_before_ = std::numeric_limits<double>::quiet_NaN();
+    double space_after_ = std::numeric_limits<double>::quiet_NaN();
+    NullableBool east_asian_line_break_ = NullableBool::NOT_DEFINED;
+    NullableBool right_to_left_ = NullableBool::NOT_DEFINED;
+    NullableBool latin_line_break_ = NullableBool::NOT_DEFINED;
+    NullableBool hanging_punctuation_ = NullableBool::NOT_DEFINED;
+    double margin_left_ = std::numeric_limits<double>::quiet_NaN();
+    double margin_right_ = std::numeric_limits<double>::quiet_NaN();
+    double indent_ = std::numeric_limits<double>::quiet_NaN();
+    double default_tab_size_ = std::numeric_limits<double>::quiet_NaN();
+    FontAlignment font_alignment_ = FontAlignment::DEFAULT;
+    int depth_ = 0;
+    PortionFormat default_portion_format_;
+
+    pugi::xml_node ppr_element_;
+    std::function<void()> save_callback_;
+};
+
+} // namespace Aspose::Slides::Foss
