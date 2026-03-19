@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include <Aspose/Slides/Foss/export/save_format.h>
 #include <Aspose/Slides/Foss/i_presentation_component.h>
 #include <Aspose/Slides/Foss/source_format.h>
 
@@ -71,7 +72,7 @@ public:
     [[nodiscard]] virtual const IPresentationComponent* as_i_presentation_component() const = 0;
 
     /// Saves the presentation to a file path with the given format.
-    virtual void save(std::string_view path, int format) = 0;
+    virtual void save(std::string_view path, SaveFormat format) = 0;
 
     /// Releases all resources used by this Presentation.
     virtual void dispose() = 0;

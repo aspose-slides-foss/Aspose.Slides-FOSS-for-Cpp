@@ -46,7 +46,7 @@ protected:
     /// Saves a presentation to a temp file and reopens from that file.
     Presentation save_and_reopen(Presentation& pres) {
         auto path = (tmp_dir_ / "roundtrip.pptx").string();
-        pres.save(path, static_cast<int>(SaveFormat::PPTX));
+        pres.save(path, SaveFormat::PPTX);
         return Presentation(path);
     }
 

@@ -37,7 +37,7 @@ protected:
     /// Saves a presentation to a temp file and reopens from that file.
     Presentation save_and_reopen(Presentation& pres) {
         auto path = (tmp_dir_ / "roundtrip.pptx").string();
-        pres.save(path, static_cast<int>(SaveFormat::PPTX));
+        pres.save(path, SaveFormat::PPTX);
         return Presentation(path);
     }
 
@@ -65,7 +65,7 @@ TEST_F(PresentationIntegrationTest, SaveAndReload) {
 TEST_F(PresentationIntegrationTest, SaveToFile) {
     Presentation pres;
     auto path = (tmp_dir_ / "output.pptx").string();
-    pres.save(path, static_cast<int>(SaveFormat::PPTX));
+    pres.save(path, SaveFormat::PPTX);
     EXPECT_GT(std::filesystem::file_size(path), 0u);
 }
 
@@ -96,7 +96,7 @@ TEST_F(PresentationIntegrationTest, LoadExisting) {
     auto path = (tmp_dir_ / "existing.pptx").string();
     {
         Presentation pres;
-        pres.save(path, static_cast<int>(SaveFormat::PPTX));
+        pres.save(path, SaveFormat::PPTX);
     }
     Presentation pres(path);
     EXPECT_GE(pres.slides().size(), 1u);

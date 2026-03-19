@@ -17,12 +17,12 @@ int main() {
     Presentation pres("input.pptx");
     auto& slides = pres.slides();
     // ... work with slides ...
-    pres.save("output.pptx", static_cast<int>(SaveFormat::PPTX));
+    pres.save("output.pptx", SaveFormat::PPTX);
 
     // Create a new presentation
     Presentation new_pres;
     auto& slide = new_pres.slides()[0];
-    new_pres.save("new.pptx", static_cast<int>(SaveFormat::PPTX));
+    new_pres.save("new.pptx", SaveFormat::PPTX);
 }
 ```
 
@@ -61,7 +61,7 @@ Presentation pres;
 auto& slide = pres.slides()[0];
 auto& shape = slide.shapes().add_auto_shape(ShapeType::RECTANGLE, 50, 50, 300, 100);
 shape.add_text_frame("Hello, world!");
-pres.save("shapes.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("shapes.pptx", SaveFormat::PPTX);
 ```
 
 ### Text Formatting
@@ -91,7 +91,7 @@ fmt.set_font_height(24.0f);
 fmt.set_font_bold(NullableBool::TRUE);
 fmt.fill_format().set_fill_type(FillType::SOLID);
 fmt.fill_format().solid_fill_color().set_color(Color::from_argb(255, 0, 70, 127));
-pres.save("text.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("text.pptx", SaveFormat::PPTX);
 ```
 
 ### Table
@@ -108,7 +108,7 @@ auto& table = pres.slides()[0].shapes().add_table(
     50, 50, {120.0, 120.0, 120.0}, {40.0, 40.0});
 table.rows()[0][0].text_frame().set_text("Name");
 table.rows()[0][1].text_frame().set_text("Value");
-pres.save("table.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("table.pptx", SaveFormat::PPTX);
 ```
 
 ### Connector
@@ -132,7 +132,7 @@ conn.set_start_shape_connected_to(&box1);
 conn.set_start_shape_connection_site_index(3);  // right
 conn.set_end_shape_connected_to(&box2);
 conn.set_end_shape_connection_site_index(1);    // left
-pres.save("connector.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("connector.pptx", SaveFormat::PPTX);
 ```
 
 ### Fill
@@ -153,7 +153,7 @@ auto& shape = pres.slides()[0].shapes().add_auto_shape(
     ShapeType::RECTANGLE, 50, 50, 300, 150);
 shape.fill_format().set_fill_type(FillType::SOLID);
 shape.fill_format().solid_fill_color().set_color(Color::from_argb(255, 30, 120, 200));
-pres.save("fill.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("fill.pptx", SaveFormat::PPTX);
 ```
 
 ### Notes
@@ -170,7 +170,7 @@ using namespace Aspose::Slides::Foss;
 Presentation pres;
 auto& notes = pres.slides()[0].notes_slide_manager().add_notes_slide();
 notes.notes_text_frame().set_text("Speaker notes go here.");
-pres.save("notes.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("notes.pptx", SaveFormat::PPTX);
 ```
 
 ### Comments
@@ -193,7 +193,7 @@ auto& slide = pres.slides()[0];
 author.comments().add_comment(
     "Review this slide", &slide, PointF{2.0, 2.0},
     std::chrono::system_clock::now());
-pres.save("comments.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("comments.pptx", SaveFormat::PPTX);
 ```
 
 ### Document Properties
@@ -209,7 +209,7 @@ Presentation pres;
 pres.document_properties().set_title("Q1 Results");
 pres.document_properties().set_author("Finance Team");
 pres.document_properties().set_custom_property_value("Version", 3);
-pres.save("deck.pptx", static_cast<int>(SaveFormat::PPTX));
+pres.save("deck.pptx", SaveFormat::PPTX);
 ```
 
 ---

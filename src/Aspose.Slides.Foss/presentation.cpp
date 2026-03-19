@@ -385,7 +385,7 @@ std::vector<uint8_t> serialize_xml(pugi::xml_document& doc) {
 
 } // anonymous namespace
 
-void Presentation::save(std::string_view path, int /*format*/) {
+void Presentation::save(std::string_view path, SaveFormat /*format*/) {
     namespace opc = Internal::opc;
     namespace pptx = Internal::pptx;
 

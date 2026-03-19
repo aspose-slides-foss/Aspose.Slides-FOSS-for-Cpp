@@ -98,7 +98,7 @@ public:
     [[nodiscard]] const IPresentationComponent* as_i_presentation_component() const override;
 
     /// Saves the presentation to a file path with the given format.
-    void save(std::string_view path, int format) override;
+    void save(std::string_view path, SaveFormat format) override;
 
     /// Releases all resources used by this Presentation.
     void dispose() override;
