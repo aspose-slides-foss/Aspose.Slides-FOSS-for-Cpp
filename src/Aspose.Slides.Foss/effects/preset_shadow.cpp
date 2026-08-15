@@ -128,7 +128,7 @@ PresetShadowType PresetShadow::preset() const noexcept { return preset_; }
 void PresetShadow::set_direction(double value) noexcept {
     direction_ = value;
     if (element_) {
-        Internal::pptx::set_attribute(element_, "dir", 
+        Internal::pptx::set_attribute(element_, "dir",
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -137,7 +137,7 @@ void PresetShadow::set_direction(double value) noexcept {
 void PresetShadow::set_distance(double value) noexcept {
     distance_ = value;
     if (element_) {
-        Internal::pptx::set_attribute(element_, "dist", 
+        Internal::pptx::set_attribute(element_, "dist",
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
