@@ -19,77 +19,73 @@
 
 namespace Aspose::Slides::Foss {
 
-/// Write a text frame's formatting onto an `<a:bodyPr>` element.
-///
-/// Only what the caller set is written; an undefined property is left off so
-/// the layout and master resolve it. The one exception is `@anchor`, which
-/// keeps its long-standing `ctr` default when nothing was set — an auto shape
-/// has no placeholder chain to inherit from, and PowerPoint centres shape text
-/// vertically by default too.
-///
-/// Any child element this function owns (the autofit choice) is replaced, so
-/// calling it twice on the same node is safe.
-void serialize_body_pr(pugi::xml_node body_pr, const ITextFrameFormat& format);
-
 /// Represents text frame formatting properties.
 class TextFrameFormat final : public ITextFrameFormat {
 public:
     TextFrameFormat() = default;
 
+    // Every property below is backed by `<a:bodyPr>` once this object is bound
+    // to a `<a:txBody>`: the setter writes the element, so an edit to a deck
+    // opened from a file reaches the package. An unbound object — the
+    // from-scratch path, written out by serialize_body_pr() at save time —
+    // keeps its members instead. A getter prefers what the element says and
+    // falls back to the member when the attribute is absent, so an unset
+    // property still reads as undefined and stays inheritable.
+
     /// Returns the left margin in points. NaN = undefined.
-    [[nodiscard]] double margin_left() const override { return margin_left_; }
+    [[nodiscard]] double margin_left() const override;
     /// Sets the left margin in points.
-    void set_margin_left(double value) override { margin_left_ = value; }
+    void set_margin_left(double value) override;
 
     /// Returns the right margin in points. NaN = undefined.
-    [[nodiscard]] double margin_right() const override { return margin_right_; }
+    [[nodiscard]] double margin_right() const override;
     /// Sets the right margin in points.
-    void set_margin_right(double value) override { margin_right_ = value; }
+    void set_margin_right(double value) override;
 
     /// Returns the top margin in points. NaN = undefined.
-    [[nodiscard]] double margin_top() const override { return margin_top_; }
+    [[nodiscard]] double margin_top() const override;
     /// Sets the top margin in points.
-    void set_margin_top(double value) override { margin_top_ = value; }
+    void set_margin_top(double value) override;
 
     /// Returns the bottom margin in points. NaN = undefined.
-    [[nodiscard]] double margin_bottom() const override { return margin_bottom_; }
+    [[nodiscard]] double margin_bottom() const override;
     /// Sets the bottom margin in points.
-    void set_margin_bottom(double value) override { margin_bottom_ = value; }
+    void set_margin_bottom(double value) override;
 
     /// Returns whether text wraps.
-    [[nodiscard]] NullableBool wrap_text() const override { return wrap_text_; }
+    [[nodiscard]] NullableBool wrap_text() const override;
     /// Sets whether text wraps.
-    void set_wrap_text(NullableBool value) override { wrap_text_ = value; }
+    void set_wrap_text(NullableBool value) override;
 
     /// Returns the text anchor type.
-    [[nodiscard]] TextAnchorType anchoring_type() const override { return anchoring_type_; }
+    [[nodiscard]] TextAnchorType anchoring_type() const override;
     /// Sets the text anchor type.
-    void set_anchoring_type(TextAnchorType value) override { anchoring_type_ = value; }
+    void set_anchoring_type(TextAnchorType value) override;
 
     /// Returns whether text is centered.
-    [[nodiscard]] NullableBool center_text() const override { return center_text_; }
+    [[nodiscard]] NullableBool center_text() const override;
     /// Sets whether text is centered.
-    void set_center_text(NullableBool value) override { center_text_ = value; }
+    void set_center_text(NullableBool value) override;
 
     /// Returns the text vertical type.
-    [[nodiscard]] TextVerticalType text_vertical_type() const override { return text_vertical_type_; }
+    [[nodiscard]] TextVerticalType text_vertical_type() const override;
     /// Sets the text vertical type.
-    void set_text_vertical_type(TextVerticalType value) override { text_vertical_type_ = value; }
+    void set_text_vertical_type(TextVerticalType value) override;
 
     /// Returns the autofit type.
-    [[nodiscard]] TextAutofitType autofit_type() const override { return autofit_type_; }
+    [[nodiscard]] TextAutofitType autofit_type() const override;
     /// Sets the autofit type.
-    void set_autofit_type(TextAutofitType value) override { autofit_type_ = value; }
+    void set_autofit_type(TextAutofitType value) override;
 
     /// Returns the number of columns.
-    [[nodiscard]] int column_count() const override { return column_count_; }
+    [[nodiscard]] int column_count() const override;
     /// Sets the number of columns.
-    void set_column_count(int value) override { column_count_ = value; }
+    void set_column_count(int value) override;
 
     /// Returns the column spacing in points.
-    [[nodiscard]] double column_spacing() const override { return column_spacing_; }
+    [[nodiscard]] double column_spacing() const override;
     /// Sets the column spacing in points.
-    void set_column_spacing(double value) override { column_spacing_ = value; }
+    void set_column_spacing(double value) override;
 
     /// Returns the ThreeDFormat object that represents 3D effect properties for text. Read-only.
     [[nodiscard]] ThreeDFormat& three_d_format() noexcept override { return three_d_format_; }
@@ -102,9 +98,9 @@ public:
     void set_keep_text_flat(bool value) override { keep_text_flat_ = value; }
 
     /// Returns the rotation angle in degrees.
-    [[nodiscard]] double rotation_angle() const override { return rotation_angle_; }
+    [[nodiscard]] double rotation_angle() const override;
     /// Sets the rotation angle in degrees.
-    void set_rotation_angle(double value) override { rotation_angle_ = value; }
+    void set_rotation_angle(double value) override;
 
     /// Returns the text shape type (transform).
     [[nodiscard]] TextShapeType transform() const override { return transform_; }

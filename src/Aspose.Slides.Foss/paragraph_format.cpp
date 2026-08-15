@@ -3,15 +3,14 @@
 
 #include <Aspose/Slides/Foss/paragraph_format.h>
 
+#include <Aspose/Slides/Foss/_internal/pptx/text_serialization.h>
+
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
-#include <Aspose/Slides/Foss/drawing/color.h>
-#include <Aspose/Slides/Foss/i_color_format.h>
 
 namespace Aspose::Slides::Foss {
 
@@ -58,7 +57,8 @@ static int tag_position(std::string_view tag) {
 // ppr_insert_child — free function
 // ---------------------------------------------------------------------------
 
-pugi::xml_node ppr_insert_child(pugi::xml_node ppr, std::string_view tag) {
+pugi::xml_node Internal::pptx::ppr_insert_child(pugi::xml_node ppr,
+                                                std::string_view tag) {
     const int target_pos = tag_position(tag);
     std::string tag_str{tag};
 
@@ -116,12 +116,12 @@ TextAlignment ParagraphFormat::alignment() const {
 
 void ParagraphFormat::set_alignment(TextAlignment value) {
     alignment_ = value;
-    if (ppr_element_) {
+    if (auto ppr = ensure_ppr()) {
         if (value == TextAlignment::NOT_DEFINED) {
-            ppr_element_.remove_attribute("algn");
+            ppr.remove_attribute("algn");
         } else {
-            auto a = ppr_element_.attribute("algn");
-            if (!a) a = ppr_element_.append_attribute("algn");
+            auto a = ppr.attribute("algn");
+            if (!a) a = ppr.append_attribute("algn");
             a.set_value(alignment_to_ooxml(value));
         }
         save();
@@ -129,9 +129,25 @@ void ParagraphFormat::set_alignment(TextAlignment value) {
 }
 
 void ParagraphFormat::init_internal(pugi::xml_node ppr_element,
-                                    std::function<void()> save_callback) {
+                                    std::function<void()> save_callback,
+                                    pugi::xml_node p_element) {
     ppr_element_ = ppr_element;
-    save_callback_ = std::move(save_callback);
+    p_element_ = p_element;
+    save_callback_ = save_callback;
+    // The bullet is part of the paragraph's formatting and lives in the same
+    // element; binding it here is what makes a bullet set on a loaded deck
+    // reach the file.
+    bullet_.init_internal(ppr_element, std::move(save_callback), p_element);
+}
+
+pugi::xml_node ParagraphFormat::ensure_ppr() {
+    if (ppr_element_) return ppr_element_;
+    if (!p_element_) return {};
+    // CT_TextParagraph is (pPr?, (r|br|fld)*, endParaRPr?), so the properties
+    // element goes first.
+    ppr_element_ = p_element_.prepend_child("a:pPr");
+    bullet_.init_internal(ppr_element_, save_callback_, p_element_);
+    return ppr_element_;
 }
 
 void ParagraphFormat::save() {
@@ -218,7 +234,7 @@ void ParagraphFormat::set_spacing(std::string_view tag, double value) {
         }
     } else {
         if (!el) {
-            el = ppr_insert_child(ppr_element_, tag);
+            el = Internal::pptx::ppr_insert_child(ppr_element_, tag);
         }
         // Remove existing children.
         while (auto child = el.first_child()) {
@@ -289,59 +305,6 @@ const char* font_alignment_to_ooxml(FontAlignment value) {
     return nullptr;
 }
 
-/// ST_TextAutonumberScheme token. These are not the display names
-/// to_string_view() returns; an invented token makes PowerPoint refuse
-/// the file.
-const char* numbered_bullet_style_to_ooxml(NumberedBulletStyle value) {
-    switch (value) {
-        case NumberedBulletStyle::BULLET_ALPHA_LC_PERIOD:         return "alphaLcPeriod";
-        case NumberedBulletStyle::BULLET_ALPHA_UC_PERIOD:         return "alphaUcPeriod";
-        case NumberedBulletStyle::BULLET_ARABIC_PAREN_RIGHT:      return "arabicParenR";
-        case NumberedBulletStyle::BULLET_ARABIC_PERIOD:           return "arabicPeriod";
-        case NumberedBulletStyle::BULLET_ROMAN_LC_PAREN_BOTH:     return "romanLcParenBoth";
-        case NumberedBulletStyle::BULLET_ROMAN_LC_PAREN_RIGHT:    return "romanLcParenR";
-        case NumberedBulletStyle::BULLET_ROMAN_LC_PERIOD:         return "romanLcPeriod";
-        case NumberedBulletStyle::BULLET_ROMAN_UC_PERIOD:         return "romanUcPeriod";
-        case NumberedBulletStyle::BULLET_ALPHA_LC_PAREN_BOTH:     return "alphaLcParenBoth";
-        case NumberedBulletStyle::BULLET_ALPHA_LC_PAREN_RIGHT:    return "alphaLcParenR";
-        case NumberedBulletStyle::BULLET_ALPHA_UC_PAREN_BOTH:     return "alphaUcParenBoth";
-        case NumberedBulletStyle::BULLET_ALPHA_UC_PAREN_RIGHT:    return "alphaUcParenR";
-        case NumberedBulletStyle::BULLET_ARABIC_PAREN_BOTH:       return "arabicParenBoth";
-        case NumberedBulletStyle::BULLET_ARABIC_PLAIN:            return "arabicPlain";
-        case NumberedBulletStyle::BULLET_ROMAN_UC_PAREN_BOTH:     return "romanUcParenBoth";
-        case NumberedBulletStyle::BULLET_ROMAN_UC_PAREN_RIGHT:    return "romanUcParenR";
-        case NumberedBulletStyle::BULLET_SIMP_CHIN_PLAIN:         return "ea1ChsPlain";
-        case NumberedBulletStyle::BULLET_SIMP_CHIN_PERIOD:        return "ea1ChsPeriod";
-        case NumberedBulletStyle::BULLET_CIRCLE_NUM_DB_PLAIN:     return "circleNumDbPlain";
-        case NumberedBulletStyle::BULLET_CIRCLE_NUM_WD_WHITE_PLAIN: return "circleNumWdWhitePlain";
-        case NumberedBulletStyle::BULLET_CIRCLE_NUM_WD_BLACK_PLAIN: return "circleNumWdBlackPlain";
-        case NumberedBulletStyle::BULLET_TRAD_CHIN_PLAIN:         return "ea1ChtPlain";
-        case NumberedBulletStyle::BULLET_TRAD_CHIN_PERIOD:        return "ea1ChtPeriod";
-        // ST_TextAutonumberScheme spells the three dash schemes with a
-        // "Minus" suffix, not with the language name they carry here.
-        case NumberedBulletStyle::BULLET_ARABIC_ALPHA_DASH:       return "arabic1Minus";
-        case NumberedBulletStyle::BULLET_ARABIC_ABJAD_DASH:       return "arabic2Minus";
-        case NumberedBulletStyle::BULLET_HEBREW_ALPHA_DASH:       return "hebrew2Minus";
-        case NumberedBulletStyle::BULLET_KANJI_KOREAN_PLAIN:      return "ea1JpnKorPlain";
-        case NumberedBulletStyle::BULLET_KANJI_KOREAN_PERIOD:     return "ea1JpnKorPeriod";
-        case NumberedBulletStyle::BULLET_ARABIC_DB_PLAIN:         return "arabicDbPlain";
-        case NumberedBulletStyle::BULLET_ARABIC_DB_PERIOD:        return "arabicDbPeriod";
-        case NumberedBulletStyle::BULLET_THAI_ALPHA_PERIOD:       return "thaiAlphaPeriod";
-        case NumberedBulletStyle::BULLET_THAI_ALPHA_PAREN_RIGHT:  return "thaiAlphaParenR";
-        case NumberedBulletStyle::BULLET_THAI_ALPHA_PAREN_BOTH:   return "thaiAlphaParenBoth";
-        case NumberedBulletStyle::BULLET_THAI_NUM_PERIOD:         return "thaiNumPeriod";
-        case NumberedBulletStyle::BULLET_THAI_NUM_PAREN_RIGHT:    return "thaiNumParenR";
-        case NumberedBulletStyle::BULLET_THAI_NUM_PAREN_BOTH:     return "thaiNumParenBoth";
-        case NumberedBulletStyle::BULLET_HINDI_ALPHA_PERIOD:      return "hindiAlphaPeriod";
-        case NumberedBulletStyle::BULLET_HINDI_NUM_PERIOD:        return "hindiNumPeriod";
-        case NumberedBulletStyle::BULLET_KANJI_SIMP_CHIN_DB_PERIOD: return "ea1JpnChsDbPeriod";
-        case NumberedBulletStyle::BULLET_HINDI_NUM_PAREN_RIGHT:   return "hindiNumParenR";
-        case NumberedBulletStyle::BULLET_HINDI_ALPHA1_PERIOD:     return "hindiAlpha1Period";
-        case NumberedBulletStyle::NOT_DEFINED:                    return nullptr;
-    }
-    return nullptr;
-}
-
 void append_emu_attr(pugi::xml_node node, const char* name, double points) {
     if (std::isnan(points)) return;
     node.append_attribute(name) =
@@ -357,7 +320,7 @@ void append_bool_attr(pugi::xml_node node, const char* name, NullableBool value)
 /// a point size — the sign convention get_spacing()/set_spacing() already use.
 void append_spacing(pugi::xml_node ppr, const char* tag, double value) {
     if (std::isnan(value)) return;
-    auto el = ppr_insert_child(ppr, tag);
+    auto el = Internal::pptx::ppr_insert_child(ppr, tag);
     if (value >= 0) {
         el.append_child("a:spcPct").append_attribute("val") =
             static_cast<int>(std::round(value * 1000));
@@ -367,17 +330,9 @@ void append_spacing(pugi::xml_node ppr, const char* tag, double value) {
     }
 }
 
-void append_srgb_color(pugi::xml_node parent, const IColorFormat& cf) {
-    auto c = cf.color();
-    char hex[7];
-    std::snprintf(hex, sizeof(hex), "%02X%02X%02X", static_cast<int>(c.r()),
-                  static_cast<int>(c.g()), static_cast<int>(c.b()));
-    parent.append_child("a:srgbClr").append_attribute("val") = hex;
-}
-
 } // namespace
 
-bool ppr_has_content(const IParagraphFormat& format) {
+bool Internal::pptx::ppr_has_content(const IParagraphFormat& format) {
     const auto& bullet = format.bullet();
     return format.alignment() != TextAlignment::NOT_DEFINED ||
            format.depth() != 0 ||
@@ -396,7 +351,8 @@ bool ppr_has_content(const IParagraphFormat& format) {
            bullet.type() != BulletType::NOT_DEFINED;
 }
 
-void serialize_ppr(pugi::xml_node ppr, const IParagraphFormat& format) {
+void Internal::pptx::serialize_ppr(pugi::xml_node ppr,
+                                   const IParagraphFormat& format) {
     // -- Attributes ---------------------------------------------------------
     append_emu_attr(ppr, "marL", format.margin_left());
     append_emu_attr(ppr, "marR", format.margin_right());
@@ -421,55 +377,181 @@ void serialize_ppr(pugi::xml_node ppr, const IParagraphFormat& format) {
     append_spacing(ppr, "a:spcBef", format.space_before());
     append_spacing(ppr, "a:spcAft", format.space_after());
 
-    const auto& bullet = format.bullet();
-    if (bullet.type() == BulletType::NOT_DEFINED) return;
+    Internal::pptx::write_bullet(ppr, format.bullet());
+}
 
-    if (bullet.is_bullet_hard_color() == NullableBool::TRUE) {
-        append_srgb_color(ppr_insert_child(ppr, "a:buClr"), bullet.color());
-    }
-    if (!std::isnan(bullet.height())) {
-        ppr_insert_child(ppr, "a:buSzPct").append_attribute("val") =
-            static_cast<int>(std::round(bullet.height() * 1000.0f));
-    }
-    if (!bullet.font_name().empty()) {
-        ppr_insert_child(ppr, "a:buFont").append_attribute("typeface") =
-            bullet.font_name().c_str();
-    }
 
-    switch (bullet.type()) {
-        case BulletType::NONE:
-            ppr_insert_child(ppr, "a:buNone");
-            break;
-        case BulletType::SYMBOL: {
-            // @char is required by CT_TextCharBullet. A symbol bullet with no
-            // character set falls back to the same glyph PowerPoint uses.
-            auto node = ppr_insert_child(ppr, "a:buChar");
-            node.append_attribute("char") =
-                bullet.get_char().empty() ? "\xE2\x80\xA2"
-                                          : bullet.get_char().c_str();
-            break;
-        }
-        case BulletType::NUMBERED: {
-            auto node = ppr_insert_child(ppr, "a:buAutoNum");
-            // @type is required by CT_TextAutonumberBullet.
-            const char* scheme =
-                numbered_bullet_style_to_ooxml(bullet.numbered_bullet_style());
-            node.append_attribute("type") = scheme ? scheme : "arabicPeriod";
-            if (bullet.numbered_bullet_start_with() != 1) {
-                node.append_attribute("startAt") =
-                    bullet.numbered_bullet_start_with();
-            }
-            break;
-        }
-        case BulletType::PICTURE:
-            // a:buBlip needs an r:embed to an image part, which this
-            // serialiser has no relationship table to allocate one in. Writing
-            // a:buBlip with no a:blip would produce a package that does not
-            // validate, so the bullet is left to be inherited instead.
-            break;
-        case BulletType::NOT_DEFINED:
-            break;
+
+// ---------------------------------------------------------------------------
+// Property accessors
+//
+// Each one is backed by the `<a:pPr>` element when this object is bound to
+// one, and answers from its member when it is not. The two cases are the two
+// serialisers: a deck opened from a file is edited in place through the XML,
+// and a deck built in memory is written out by serialize_ppr() at save time.
+//
+// Writing is surgical — one attribute or one child per property — so a
+// property the caller never mentions is left exactly as the file had it.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/// The reverse of font_alignment_to_ooxml.
+FontAlignment ooxml_to_font_alignment(std::string_view s) {
+    if (s == "auto") return FontAlignment::AUTOMATIC;
+    if (s == "t")    return FontAlignment::TOP;
+    if (s == "ctr")  return FontAlignment::CENTER;
+    if (s == "b")    return FontAlignment::BOTTOM;
+    if (s == "base") return FontAlignment::BASELINE;
+    return FontAlignment::DEFAULT;
+}
+
+} // namespace
+
+int ParagraphFormat::depth() const {
+    if (ppr_element_) {
+        if (auto attr = ppr_element_.attribute("lvl")) return attr.as_int(0);
     }
+    return depth_;
+}
+
+void ParagraphFormat::set_depth(int value) {
+    depth_ = value;
+    auto ppr = ensure_ppr();
+    if (!ppr) return;
+    // @lvl defaults to 0, so level zero is written by leaving it off.
+    if (value == 0) {
+        ppr.remove_attribute("lvl");
+    } else {
+        auto attr = ppr.attribute("lvl");
+        if (!attr) attr = ppr.append_attribute("lvl");
+        attr.set_value(value);
+    }
+    save();
+}
+
+double ParagraphFormat::space_within() const {
+    return ppr_element_ ? get_spacing("a:lnSpc") : space_within_;
+}
+
+void ParagraphFormat::set_space_within(double value) {
+    space_within_ = value;
+    if (ensure_ppr()) set_spacing("a:lnSpc", value);
+}
+
+double ParagraphFormat::space_before() const {
+    return ppr_element_ ? get_spacing("a:spcBef") : space_before_;
+}
+
+void ParagraphFormat::set_space_before(double value) {
+    space_before_ = value;
+    if (ensure_ppr()) set_spacing("a:spcBef", value);
+}
+
+double ParagraphFormat::space_after() const {
+    return ppr_element_ ? get_spacing("a:spcAft") : space_after_;
+}
+
+void ParagraphFormat::set_space_after(double value) {
+    space_after_ = value;
+    if (ensure_ppr()) set_spacing("a:spcAft", value);
+}
+
+NullableBool ParagraphFormat::east_asian_line_break() const {
+    return ppr_element_ ? get_nullable_bool_attr("eaLnBrk")
+                        : east_asian_line_break_;
+}
+
+void ParagraphFormat::set_east_asian_line_break(NullableBool value) {
+    east_asian_line_break_ = value;
+    if (ensure_ppr()) set_nullable_bool_attr("eaLnBrk", value);
+}
+
+NullableBool ParagraphFormat::right_to_left() const {
+    return ppr_element_ ? get_nullable_bool_attr("rtl") : right_to_left_;
+}
+
+void ParagraphFormat::set_right_to_left(NullableBool value) {
+    right_to_left_ = value;
+    if (ensure_ppr()) set_nullable_bool_attr("rtl", value);
+}
+
+NullableBool ParagraphFormat::latin_line_break() const {
+    return ppr_element_ ? get_nullable_bool_attr("latinLnBrk")
+                        : latin_line_break_;
+}
+
+void ParagraphFormat::set_latin_line_break(NullableBool value) {
+    latin_line_break_ = value;
+    if (ensure_ppr()) set_nullable_bool_attr("latinLnBrk", value);
+}
+
+NullableBool ParagraphFormat::hanging_punctuation() const {
+    return ppr_element_ ? get_nullable_bool_attr("hangingPunct")
+                        : hanging_punctuation_;
+}
+
+void ParagraphFormat::set_hanging_punctuation(NullableBool value) {
+    hanging_punctuation_ = value;
+    if (ensure_ppr()) set_nullable_bool_attr("hangingPunct", value);
+}
+
+double ParagraphFormat::margin_left() const {
+    return ppr_element_ ? get_emu_attr("marL") : margin_left_;
+}
+
+void ParagraphFormat::set_margin_left(double value) {
+    margin_left_ = value;
+    if (ensure_ppr()) set_emu_attr("marL", value);
+}
+
+double ParagraphFormat::margin_right() const {
+    return ppr_element_ ? get_emu_attr("marR") : margin_right_;
+}
+
+void ParagraphFormat::set_margin_right(double value) {
+    margin_right_ = value;
+    if (ensure_ppr()) set_emu_attr("marR", value);
+}
+
+double ParagraphFormat::indent() const {
+    return ppr_element_ ? get_emu_attr("indent") : indent_;
+}
+
+void ParagraphFormat::set_indent(double value) {
+    indent_ = value;
+    if (ensure_ppr()) set_emu_attr("indent", value);
+}
+
+double ParagraphFormat::default_tab_size() const {
+    return ppr_element_ ? get_emu_attr("defTabSz") : default_tab_size_;
+}
+
+void ParagraphFormat::set_default_tab_size(double value) {
+    default_tab_size_ = value;
+    if (ensure_ppr()) set_emu_attr("defTabSz", value);
+}
+
+FontAlignment ParagraphFormat::font_alignment() const {
+    if (ppr_element_) {
+        if (auto attr = ppr_element_.attribute("fontAlgn"))
+            return ooxml_to_font_alignment(attr.as_string(""));
+    }
+    return font_alignment_;
+}
+
+void ParagraphFormat::set_font_alignment(FontAlignment value) {
+    font_alignment_ = value;
+    auto ppr = ensure_ppr();
+    if (!ppr) return;
+    if (const char* token = font_alignment_to_ooxml(value)) {
+        auto attr = ppr.attribute("fontAlgn");
+        if (!attr) attr = ppr.append_attribute("fontAlgn");
+        attr.set_value(token);
+    } else {
+        ppr.remove_attribute("fontAlgn");
+    }
+    save();
 }
 
 } // namespace Aspose::Slides::Foss

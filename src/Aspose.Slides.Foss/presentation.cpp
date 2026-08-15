@@ -23,6 +23,7 @@
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
 #include <Aspose/Slides/Foss/_internal/pptx/layout_slide_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/master_slide_part.h>
+#include <Aspose/Slides/Foss/_internal/pptx/text_serialization.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/base_portion_format.h>
 #include <Aspose/Slides/Foss/paragraph.h>
@@ -799,8 +800,8 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                                 auto body_pr = node.child("p:txBody")
                                                    .child("a:bodyPr");
                                 if (body_pr) {
-                                    serialize_body_pr(body_pr,
-                                                      tf->text_frame_format());
+                                    pptx::serialize_body_pr(
+                                        body_pr, tf->text_frame_format());
                                 }
                             }
 
@@ -837,8 +838,8 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                                         // invented algn would take away the
                                         // caller's way of inheriting one.
                                         auto& pf = paras[pi].paragraph_format();
-                                        if (ppr_has_content(pf)) {
-                                            serialize_ppr(
+                                        if (pptx::ppr_has_content(pf)) {
+                                            pptx::serialize_ppr(
                                                 a_p.append_child("a:pPr"), pf);
                                         }
 
@@ -1018,8 +1019,8 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                             for (std::size_t pi = 0; pi < paras.size(); ++pi) {
                                 auto p_el = txbody.append_child("a:p");
                                 auto& pf = paras[pi].paragraph_format();
-                                if (ppr_has_content(pf)) {
-                                    serialize_ppr(p_el.append_child("a:pPr"), pf);
+                                if (pptx::ppr_has_content(pf)) {
+                                    pptx::serialize_ppr(p_el.append_child("a:pPr"), pf);
                                 }
                                 auto r_el = p_el.append_child("a:r");
                                 auto t_el = r_el.append_child("a:t");

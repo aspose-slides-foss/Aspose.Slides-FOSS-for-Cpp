@@ -3,9 +3,12 @@
 
 #include <Aspose/Slides/Foss/text_frame_format.h>
 
+#include <Aspose/Slides/Foss/_internal/pptx/text_serialization.h>
+
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <string_view>
 
 namespace Aspose::Slides::Foss {
 
@@ -33,7 +36,13 @@ pugi::xml_node TextFrameFormat::ensure_body_pr() {
     if (body_pr) {
         return body_pr;
     }
-    return txbody_element_.append_child("a:bodyPr");
+    if (!txbody_element_) {
+        return {};
+    }
+    // CT_TextBody is (bodyPr, lstStyle?, p+): the element goes first, not
+    // last. Appending it after the paragraphs produces a body a consumer is
+    // entitled to reject.
+    return txbody_element_.prepend_child("a:bodyPr");
 }
 
 void TextFrameFormat::save() {
@@ -206,7 +215,8 @@ void set_emu_attr(pugi::xml_node node, const char* name, double points) {
 
 } // namespace
 
-void serialize_body_pr(pugi::xml_node body_pr, const ITextFrameFormat& format) {
+void Internal::pptx::serialize_body_pr(pugi::xml_node body_pr,
+                                       const ITextFrameFormat& format) {
     if (format.rotation_angle() != 0.0) {
         auto attr = body_pr.attribute("rot");
         if (!attr) attr = body_pr.append_attribute("rot");
@@ -254,6 +264,259 @@ void serialize_body_pr(pugi::xml_node body_pr, const ITextFrameFormat& format) {
             body_pr.prepend_child(autofit);
         }
     }
+}
+
+
+// ---------------------------------------------------------------------------
+// Property accessors
+//
+// Backed by `<a:bodyPr>` when this object is bound to a `<a:txBody>`, and by
+// the members when it is not. The two cases are the two serialisers: a deck
+// opened from a file is edited in place through the XML, and a deck built in
+// memory is written out by serialize_body_pr() at save time.
+//
+// A getter falls back to its member when the attribute is absent, so a
+// property nobody set still reads as undefined and stays inheritable.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+TextAnchorType ooxml_to_anchor(std::string_view s) {
+    if (s == "t")    return TextAnchorType::TOP;
+    if (s == "ctr")  return TextAnchorType::CENTER;
+    if (s == "b")    return TextAnchorType::BOTTOM;
+    if (s == "just") return TextAnchorType::JUSTIFIED;
+    if (s == "dist") return TextAnchorType::DISTRIBUTED;
+    return TextAnchorType::NOT_DEFINED;
+}
+
+TextVerticalType ooxml_to_vertical(std::string_view s) {
+    if (s == "horz")           return TextVerticalType::HORIZONTAL;
+    if (s == "vert")           return TextVerticalType::VERTICAL;
+    if (s == "vert270")        return TextVerticalType::VERTICAL270;
+    if (s == "wordArtVert")    return TextVerticalType::WORD_ART_VERTICAL;
+    if (s == "eaVert")         return TextVerticalType::EAST_ASIAN_VERTICAL;
+    if (s == "mongolianVert")  return TextVerticalType::MONGOLIAN_VERTICAL;
+    if (s == "wordArtVertRtl")
+        return TextVerticalType::WORD_ART_VERTICAL_RIGHT_TO_LEFT;
+    return TextVerticalType::NOT_DEFINED;
+}
+
+} // namespace
+
+double TextFrameFormat::margin_left() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("lIns"))
+        return bp.attribute("lIns").as_llong(0) / static_cast<double>(kEmuPerPoint);
+    return margin_left_;
+}
+
+void TextFrameFormat::set_margin_left(double value) {
+    margin_left_ = value;
+    if (txbody_element_) set_margin("lIns", value);
+}
+
+double TextFrameFormat::margin_right() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("rIns"))
+        return bp.attribute("rIns").as_llong(0) / static_cast<double>(kEmuPerPoint);
+    return margin_right_;
+}
+
+void TextFrameFormat::set_margin_right(double value) {
+    margin_right_ = value;
+    if (txbody_element_) set_margin("rIns", value);
+}
+
+double TextFrameFormat::margin_top() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("tIns"))
+        return bp.attribute("tIns").as_llong(0) / static_cast<double>(kEmuPerPoint);
+    return margin_top_;
+}
+
+void TextFrameFormat::set_margin_top(double value) {
+    margin_top_ = value;
+    if (txbody_element_) set_margin("tIns", value);
+}
+
+double TextFrameFormat::margin_bottom() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("bIns"))
+        return bp.attribute("bIns").as_llong(0) / static_cast<double>(kEmuPerPoint);
+    return margin_bottom_;
+}
+
+void TextFrameFormat::set_margin_bottom(double value) {
+    margin_bottom_ = value;
+    if (txbody_element_) set_margin("bIns", value);
+}
+
+NullableBool TextFrameFormat::wrap_text() const {
+    if (auto bp = get_body_pr(); bp) {
+        if (auto attr = bp.attribute("wrap")) {
+            return std::string_view(attr.as_string("")) == "none"
+                       ? NullableBool::FALSE
+                       : NullableBool::TRUE;
+        }
+    }
+    return wrap_text_;
+}
+
+void TextFrameFormat::set_wrap_text(NullableBool value) {
+    wrap_text_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    // ST_TextWrappingType is "square" or "none"; there is no boolean form.
+    if (value == NullableBool::NOT_DEFINED) {
+        bp.remove_attribute("wrap");
+    } else {
+        set_attr(bp, "wrap", value == NullableBool::TRUE ? "square" : "none");
+    }
+    save();
+}
+
+TextAnchorType TextFrameFormat::anchoring_type() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("anchor"))
+        return ooxml_to_anchor(bp.attribute("anchor").as_string(""));
+    return anchoring_type_;
+}
+
+void TextFrameFormat::set_anchoring_type(TextAnchorType value) {
+    anchoring_type_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    if (const char* token = anchor_to_ooxml(value)) {
+        set_attr(bp, "anchor", token);
+    } else {
+        bp.remove_attribute("anchor");
+    }
+    save();
+}
+
+NullableBool TextFrameFormat::center_text() const {
+    if (auto bp = get_body_pr(); bp) {
+        if (auto attr = bp.attribute("anchorCtr")) {
+            return std::string_view(attr.as_string("")) == "1"
+                       ? NullableBool::TRUE
+                       : NullableBool::FALSE;
+        }
+    }
+    return center_text_;
+}
+
+void TextFrameFormat::set_center_text(NullableBool value) {
+    center_text_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    if (value == NullableBool::NOT_DEFINED) {
+        bp.remove_attribute("anchorCtr");
+    } else {
+        set_attr(bp, "anchorCtr", value == NullableBool::TRUE ? "1" : "0");
+    }
+    save();
+}
+
+TextVerticalType TextFrameFormat::text_vertical_type() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("vert"))
+        return ooxml_to_vertical(bp.attribute("vert").as_string(""));
+    return text_vertical_type_;
+}
+
+void TextFrameFormat::set_text_vertical_type(TextVerticalType value) {
+    text_vertical_type_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    if (const char* token = vertical_to_ooxml(value)) {
+        set_attr(bp, "vert", token);
+    } else {
+        bp.remove_attribute("vert");
+    }
+    save();
+}
+
+TextAutofitType TextFrameFormat::autofit_type() const {
+    if (auto bp = get_body_pr(); bp) {
+        if (bp.child("a:noAutofit"))   return TextAutofitType::NONE;
+        if (bp.child("a:normAutofit")) return TextAutofitType::NORMAL;
+        if (bp.child("a:spAutoFit"))   return TextAutofitType::SHAPE;
+    }
+    return autofit_type_;
+}
+
+void TextFrameFormat::set_autofit_type(TextAutofitType value) {
+    autofit_type_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    // The autofit choice is one element out of three; replace whichever is
+    // there so the body cannot end up carrying two of them.
+    for (const char* tag : {"a:noAutofit", "a:normAutofit", "a:spAutoFit"}) {
+        if (auto existing = bp.child(tag)) bp.remove_child(existing);
+    }
+    if (const char* tag = autofit_to_ooxml(value)) {
+        // CT_TextBodyProperties puts the autofit choice after a:prstTxWarp.
+        if (auto warp = bp.child("a:prstTxWarp")) {
+            bp.insert_child_after(tag, warp);
+        } else {
+            bp.prepend_child(tag);
+        }
+    }
+    save();
+}
+
+int TextFrameFormat::column_count() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("numCol"))
+        return bp.attribute("numCol").as_int(1);
+    return column_count_;
+}
+
+void TextFrameFormat::set_column_count(int value) {
+    column_count_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    // @numCol defaults to 1, so a single column is written by leaving it off.
+    if (value <= 1) {
+        bp.remove_attribute("numCol");
+    } else {
+        auto attr = bp.attribute("numCol");
+        if (!attr) attr = bp.append_attribute("numCol");
+        attr.set_value(value);
+    }
+    save();
+}
+
+double TextFrameFormat::column_spacing() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("spcCol"))
+        return bp.attribute("spcCol").as_llong(0) / static_cast<double>(kEmuPerPoint);
+    return column_spacing_;
+}
+
+void TextFrameFormat::set_column_spacing(double value) {
+    column_spacing_ = value;
+    if (txbody_element_) set_margin("spcCol", value);
+}
+
+double TextFrameFormat::rotation_angle() const {
+    if (auto bp = get_body_pr(); bp && bp.attribute("rot"))
+        return bp.attribute("rot").as_llong(0) / static_cast<double>(kRotationUnit);
+    return rotation_angle_;
+}
+
+void TextFrameFormat::set_rotation_angle(double value) {
+    rotation_angle_ = value;
+    if (!txbody_element_) return;
+    auto bp = ensure_body_pr();
+    if (!bp) return;
+    if (value == 0.0) {
+        bp.remove_attribute("rot");
+    } else {
+        auto attr = bp.attribute("rot");
+        if (!attr) attr = bp.append_attribute("rot");
+        attr.set_value(static_cast<long long>(std::round(value * kRotationUnit)));
+    }
+    save();
 }
 
 } // namespace Aspose::Slides::Foss

@@ -179,6 +179,84 @@ TEST_F(TextBodyConformance, DisablingTextWrapReachesTheFile) {
                                            {{"wrap", "none"}}));
 }
 
+// -- The loaded-deck path ---------------------------------------------------
+
+/// Editing a deck opened from a file is what these libraries are best at, and
+/// the paragraph and text-frame formatting models did not reach it at all:
+/// their setters were defined inline in the header and only ever assigned a
+/// member, so on a loaded deck everything was accepted, read back, and
+/// dropped. Only `<a:bodyPr>` written from scratch and only
+/// `ParagraphFormat::set_alignment` were XML-backed.
+TEST_F(TextBodyConformance, ParagraphFormattingSetOnALoadedDeckReachesTheFile) {
+    Presentation pres;
+    shape_with_text(pres, "A line of text");
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto* shape = dynamic_cast<AutoShape*>(&loaded.slides()[0].shapes()[0]);
+    ASSERT_NE(shape, nullptr);
+    auto& fmt = shape->text_frame()->paragraphs()[0].paragraph_format();
+    fmt.set_depth(1);
+    fmt.set_margin_left(22.5);  // 22.5 pt -> 285750 EMU
+    fmt.set_indent(-22.5);
+    fmt.set_space_before(-6.0); // negative = points -> a:spcPts val="600"
+    fmt.set_right_to_left(NullableBool::TRUE);
+
+    conformance::Package pkg(save_to(loaded, path_for("formatted.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(
+        pkg, kSlide, "//a:p/a:pPr",
+        {{"lvl", "1"},
+         {"marL", "285750"},
+         {"indent", "-285750"},
+         {"rtl", "1"}}))
+        << "paragraph formatting set on a loaded deck never reached a:pPr";
+    EXPECT_TRUE(conformance::ElementExists(
+        pkg, kSlide, "//a:p/a:pPr/a:spcBef/a:spcPts", {{"val", "600"}}));
+}
+
+/// A bullet is a child of `<a:pPr>`, so it is lost the same way and costs more.
+TEST_F(TextBodyConformance, ABulletSetOnALoadedDeckReachesTheFile) {
+    Presentation pres;
+    shape_with_text(pres, "A bulleted line");
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto* shape = dynamic_cast<AutoShape*>(&loaded.slides()[0].shapes()[0]);
+    ASSERT_NE(shape, nullptr);
+    auto& bullet =
+        shape->text_frame()->paragraphs()[0].paragraph_format().bullet();
+    bullet.set_type(BulletType::SYMBOL);
+    bullet.set_char("-");
+
+    conformance::Package pkg(save_to(loaded, path_for("bulleted.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide, "//a:p/a:pPr/a:buChar",
+                                           {{"char", "-"}}));
+}
+
+/// The text-frame half of the same defect.
+TEST_F(TextBodyConformance, TextFrameFormattingSetOnALoadedDeckReachesTheFile) {
+    Presentation pres;
+    shape_with_text(pres, "A line of text");
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto* shape = dynamic_cast<AutoShape*>(&loaded.slides()[0].shapes()[0]);
+    ASSERT_NE(shape, nullptr);
+    auto& fmt = shape->text_frame()->text_frame_format();
+    fmt.set_anchoring_type(TextAnchorType::TOP);
+    fmt.set_margin_left(10); // 10 pt -> 127000 EMU
+    fmt.set_margin_right(10);
+    fmt.set_wrap_text(NullableBool::FALSE);
+
+    conformance::Package pkg(save_to(loaded, path_for("anchored.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide, "//p:txBody/a:bodyPr",
+                                           {{"anchor", "t"},
+                                            {"lIns", "127000"},
+                                            {"rIns", "127000"},
+                                            {"wrap", "none"}}))
+        << "text-frame formatting set on a loaded deck never reached a:bodyPr";
+}
+
 // -- Portions ---------------------------------------------------------------
 
 /// A bold word inside a sentence is one paragraph with two differently
