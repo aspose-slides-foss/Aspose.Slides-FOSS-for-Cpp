@@ -111,6 +111,19 @@ void Shape::set_rotation(double value) {
 
 ShapeFrame Shape::build_frame() const {
     auto xfrm = get_xfrm();
+    if (xfrm) {
+        return frame_from_xfrm(xfrm);
+    }
+    // A placeholder with no a:xfrm of its own takes its geometry from the
+    // layout, or failing that the master.
+    if (auto inherited = get_inherited_frame()) {
+        return *inherited;
+    }
+    return ShapeFrame(0, 0, 0, 0, NullableBool::NOT_DEFINED,
+                      NullableBool::NOT_DEFINED, 0);
+}
+
+ShapeFrame Shape::frame_from_xfrm(pugi::xml_node xfrm) {
     if (!xfrm) {
         return ShapeFrame(0, 0, 0, 0, NullableBool::NOT_DEFINED,
                           NullableBool::NOT_DEFINED, 0);
@@ -347,13 +360,13 @@ pugi::xml_node Shape::find_placeholder_xfrm_in_xml(
 }
 
 // ---------------------------------------------------------------------------
-// get_inherited_xfrm
+// get_inherited_frame
 // ---------------------------------------------------------------------------
 
-pugi::xml_node Shape::get_inherited_xfrm() const {
+std::optional<ShapeFrame> Shape::get_inherited_frame() const {
     auto ph_info = get_placeholder_info();
     if (!ph_info || !slide_part_) {
-        return {};
+        return std::nullopt;
     }
     auto& [ph_type, ph_idx] = *ph_info;
     auto& package = slide_part_->package();
@@ -367,7 +380,8 @@ pugi::xml_node Shape::get_inherited_xfrm() const {
             layout_doc.load_buffer(layout_content->data(), layout_content->size());
             auto layout_root = layout_doc.first_child();
             auto xfrm = find_placeholder_xfrm_in_xml(layout_root, ph_type, ph_idx);
-            if (xfrm) return xfrm;
+            // Read the values out here, while layout_doc is still alive.
+            if (xfrm) return frame_from_xfrm(xfrm);
 
             // Try master slide (resolve from layout's relationships)
             Internal::pptx::LayoutSlidePart layout_part(package, layout_part_name);
@@ -380,12 +394,12 @@ pugi::xml_node Shape::get_inherited_xfrm() const {
                     auto master_root = master_doc.first_child();
                     auto master_xfrm = find_placeholder_xfrm_in_xml(
                         master_root, ph_type, ph_idx);
-                    if (master_xfrm) return master_xfrm;
+                    if (master_xfrm) return frame_from_xfrm(master_xfrm);
                 }
             }
         }
     }
-    return {};
+    return std::nullopt;
 }
 
 // ---------------------------------------------------------------------------
@@ -396,12 +410,7 @@ pugi::xml_node Shape::get_xfrm() const {
     if (!xml_element_) {
         return {};
     }
-    auto xfrm = find_xfrm_in_element(xml_element_);
-    if (xfrm) {
-        return xfrm;
-    }
-    // Placeholder inheritance: try layout, then master
-    return get_inherited_xfrm();
+    return find_xfrm_in_element(xml_element_);
 }
 
 // ---------------------------------------------------------------------------

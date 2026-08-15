@@ -192,10 +192,25 @@ public:
     /// Returns the XML element backing this shape.
     [[nodiscard]] pugi::xml_node xml_element() const { return xml_element_; }
 
-    /// Walk the layout -> master chain to find inherited xfrm for placeholders.
-    [[nodiscard]] pugi::xml_node get_inherited_xfrm() const;
+    /// Read a frame out of an a:xfrm element. An empty node gives a zero frame.
+    [[nodiscard]] static ShapeFrame frame_from_xfrm(pugi::xml_node xfrm);
 
-    /// Get the a:xfrm element from the shape XML, with placeholder inheritance.
+    /// Walk the layout -> master chain for the frame a placeholder inherits.
+    ///
+    /// Returns a value rather than a node. The layout and master parts are
+    /// parsed into documents local to this call and destroyed when it returns;
+    /// a pugi::xml_node is a non-owning handle into its document's memory pool,
+    /// so returning one would hand the caller a dangling reference.
+    ///
+    /// @return The inherited frame, or nullopt if nothing was inherited.
+    [[nodiscard]] std::optional<ShapeFrame> get_inherited_frame() const;
+
+    /// Get the a:xfrm element from this shape's own XML.
+    ///
+    /// Placeholder inheritance is deliberately not resolved here: an inherited
+    /// a:xfrm lives in the layout or master part, which is shared by every
+    /// slide that uses it, and must never be handed out for mutation. Use
+    /// get_inherited_frame() to read inherited geometry.
     [[nodiscard]] pugi::xml_node get_xfrm() const;
 
     /// Get or create the a:xfrm element.
