@@ -284,22 +284,36 @@ std::vector<Slide*> SlideCollection::to_array(std::size_t start_index,
 // add_empty_slide / insert_empty_slide (high-level, non-OPC)
 // ---------------------------------------------------------------------------
 
-Slide& SlideCollection::add_empty_slide(ILayoutSlide* layout) {
+Slide& SlideCollection::add_empty_slide_in_memory(ILayoutSlide* layout,
+                                                  std::ptrdiff_t index) {
     auto slide = std::make_unique<Slide>(presentation_);
     slide->set_layout_slide(layout);
     auto& ref = *slide;
-    slides_.push_back(std::move(slide));
+    if (index < 0 || static_cast<std::size_t>(index) >= slides_.size()) {
+        slides_.push_back(std::move(slide));
+    } else {
+        slides_.insert(slides_.begin() + index, std::move(slide));
+    }
     return ref;
+}
+
+Slide& SlideCollection::add_empty_slide(ILayoutSlide* layout) {
+    // Adding to this collection is not adding to the deck. A presentation
+    // opened from a file is saved out of its package, so a slide that exists
+    // only here reports as added, counts towards size(), and is not in the
+    // file — no error, no diagnostic. The OPC path writes the part, the
+    // relationship and the <p:sldId> that make it a slide of the deck.
+    if (package_) return add_empty_slide_internal(layout, -1);
+    return add_empty_slide_in_memory(layout, -1);
 }
 
 Slide& SlideCollection::insert_empty_slide(std::size_t index,
                                             ILayoutSlide* layout) {
-    auto slide = std::make_unique<Slide>(presentation_);
-    slide->set_layout_slide(layout);
-    auto& ref = *slide;
-    slides_.insert(slides_.begin() + static_cast<std::ptrdiff_t>(index),
-                   std::move(slide));
-    return ref;
+    if (package_)
+        return add_empty_slide_internal(layout,
+                                        static_cast<std::ptrdiff_t>(index));
+    return add_empty_slide_in_memory(layout,
+                                     static_cast<std::ptrdiff_t>(index));
 }
 
 // ---------------------------------------------------------------------------
@@ -312,6 +326,7 @@ void SlideCollection::remove(const Slide& slide) {
             return s.get() == &slide;
         });
     if (it != slides_.end()) {
+        remove_slide_from_package(it->get());
         slide_part_names_.erase(it->get());
         slides_.erase(it);
     }
@@ -321,8 +336,79 @@ void SlideCollection::remove_at(std::size_t index) {
     if (index >= slides_.size()) {
         throw std::out_of_range("remove_at index out of range");
     }
+    remove_slide_from_package(slides_[index].get());
     slide_part_names_.erase(slides_[index].get());
     slides_.erase(slides_.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void SlideCollection::remove_slide_from_package(const Slide* slide) {
+    // Dropping the slide from this collection is not dropping it from the
+    // deck. A presentation opened from a file is saved out of its package, so
+    // a slide removed only here is still in <p:sldIdLst>, still related from
+    // presentation.xml and still a part — the call reports success and the
+    // file is unchanged.
+    if (!package_ || !slide) return;
+    auto it = slide_part_names_.find(slide);
+    if (it == slide_part_names_.end()) return;
+    const std::string part_name = it->second;
+
+    auto content = package_->get_part(presentation_part_name_);
+    if (!content) return;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(content->data(), content->size())) return;
+
+    auto pres_node = doc.first_child();
+    auto sld_id_lst = pres_node.child("p:sldIdLst");
+    if (!sld_id_lst) sld_id_lst = pres_node.child(pptx::Elements::kSldIdLst.c_str());
+    if (!sld_id_lst) return;
+
+    opc::RelationshipsManager pres_rels(*package_, presentation_part_name_);
+
+    // Find the <p:sldId> whose relationship resolves to this part. Matching on
+    // the resolved part name rather than on position is what keeps this right
+    // when the list and the collection have drifted apart.
+    std::string rel_id;
+    for (auto sld_id : sld_id_lst.children()) {
+        auto attr = sld_id.attribute("r:id");
+        if (!attr) attr = sld_id.attribute(pptx::Attributes::kRId.c_str());
+        if (!attr) continue;
+        auto rel = pres_rels.get_relationship(attr.as_string());
+        if (!rel) continue;
+        if (resolve_presentation_target(rel->target) != part_name) continue;
+        rel_id = attr.as_string();
+        sld_id_lst.remove_child(sld_id);
+        break;
+    }
+    if (rel_id.empty()) return;
+
+    pres_rels.remove_relationship(rel_id);
+    pres_rels.save();
+    package_->set_part(presentation_part_name_, serialize_xml(doc));
+
+    // The part itself, its relationships and its content-type override go
+    // together: an override naming a part that is no longer there is a
+    // package a strict consumer rejects.
+    package_->delete_part(part_name);
+    package_->delete_part(
+        opc::RelationshipsManager::get_rels_part_name(part_name));
+    opc::ContentTypesManager ct(*package_);
+    ct.remove_override(part_name);
+    ct.save();
+
+    slide_references_.erase(
+        std::remove_if(slide_references_.begin(), slide_references_.end(),
+                       [&rel_id](const SlideReference& ref) {
+                           return ref.r_id == rel_id;
+                       }),
+        slide_references_.end());
+}
+
+std::string SlideCollection::resolve_presentation_target(
+    std::string_view target) const {
+    if (!target.empty() && target.front() == '/') return std::string(target.substr(1));
+    auto slash = presentation_part_name_.rfind('/');
+    if (slash == std::string::npos) return std::string(target);
+    return presentation_part_name_.substr(0, slash + 1) + std::string(target);
 }
 
 std::ptrdiff_t SlideCollection::index_of(const Slide& slide) const {
@@ -440,11 +526,7 @@ void SlideCollection::init_internal(
 
 Slide& SlideCollection::add_empty_slide_internal(ILayoutSlide* layout, std::ptrdiff_t index) {
     if (!package_) {
-        // Fallback to non-OPC path.
-        if (index < 0 || static_cast<std::size_t>(index) >= slides_.size()) {
-            return add_empty_slide(layout);
-        }
-        return insert_empty_slide(static_cast<std::size_t>(index), layout);
+        return add_empty_slide_in_memory(layout, index);
     }
 
     // Determine the next available slide number.
@@ -495,6 +577,20 @@ Slide& SlideCollection::add_empty_slide_internal(ILayoutSlide* layout, std::ptrd
     slide->set_layout_slide(layout);
     // slide_id is set from the slide reference for tracking purposes.
     // Note: set_slide_id is protected; slide_number is used for public indexing.
+
+    // Bind it to the part that was just created, the same way init_internal
+    // binds a slide read from the file. Without this the slide is in the
+    // package but not editable: every shape added to it would be written to
+    // nowhere.
+    if (package_->has_part(part_name)) {
+        auto slide_part_ptr =
+            std::make_unique<pptx::SlidePart>(*package_, part_name);
+        auto* sp_raw = slide_part_ptr.get();
+        slide->init_internal(presentation_, package_, part_name, slide_ref,
+                             sp_raw, layout_resolver_);
+        slide->shapes().init_internal(sp_raw, slide.get());
+        owned_slide_parts_.push_back(std::move(slide_part_ptr));
+    }
 
     auto* slide_ptr = slide.get();
     slide_part_names_[slide_ptr] = part_name;
@@ -847,8 +943,10 @@ SlideReference SlideCollection::add_slide_reference_to_presentation(
     }
 
     new_node.append_attribute("id") = std::to_string(new_id).c_str();
-    new_node.append_attribute(pptx::Attributes::kRId.c_str()) =
-        std::string(rel_id).c_str();
+    // The literal prefixed name, not the Clark-notation constant: pugixml
+    // stores names verbatim, so "{uri}id" would be written out as the
+    // attribute name and the part would stop being XML at all.
+    new_node.append_attribute("r:id") = std::string(rel_id).c_str();
 
     // Save presentation.xml back.
     package_->set_part(presentation_part_name_, serialize_xml(doc));
