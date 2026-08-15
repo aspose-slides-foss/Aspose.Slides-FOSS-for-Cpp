@@ -17,6 +17,8 @@
 #include <Aspose/Slides/Foss/document_properties.h>
 #include <Aspose/Slides/Foss/global_layout_slide_collection.h>
 #include <Aspose/Slides/Foss/layout_slide.h>
+#include <Aspose/Slides/Foss/notes_slide.h>
+#include <Aspose/Slides/Foss/notes_slide_manager.h>
 #include <Aspose/Slides/Foss/presentation.h>
 #include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
@@ -68,6 +70,31 @@ TEST_F(DocumentPropertiesConformance, AppPropertiesReportTheActualParagraphCount
     ASSERT_TRUE(pkg.has_entry(kAppProps));
     EXPECT_NE(app_property(pkg, "Paragraphs"), "0")
         << "the deck reports zero paragraphs on a slide that has text";
+}
+
+/// A hidden slide counts as hidden. HiddenSlides is what a document-management
+/// system reads to know the deck is not all presentable.
+TEST_F(DocumentPropertiesConformance, AppPropertiesReportTheHiddenSlideCount) {
+    Presentation pres;
+    auto* layout = &pres.layout_slides()[0];
+    pres.slides().add_empty_slide(layout);
+    pres.slides()[1].set_hidden(true);
+
+    auto pkg = save_and_inspect(pres);
+    ASSERT_TRUE(pkg.has_entry(kAppProps));
+    EXPECT_EQ(app_property(pkg, "Slides"), "2");
+    EXPECT_EQ(app_property(pkg, "HiddenSlides"), "1");
+}
+
+/// And a deck with a notes slide says it has one.
+TEST_F(DocumentPropertiesConformance, AppPropertiesReportTheNotesCount) {
+    Presentation pres;
+    ASSERT_NE(pres.slides()[0].notes_slide_manager().add_notes_slide(),
+              nullptr);
+
+    auto pkg = save_and_inspect(pres);
+    ASSERT_TRUE(pkg.has_entry(kAppProps));
+    EXPECT_EQ(app_property(pkg, "Notes"), "1");
 }
 
 /// The title and author the caller set are written correctly today; this pins

@@ -4,8 +4,12 @@
 #include <Aspose/Slides/Foss/document_properties.h>
 
 #include <algorithm>
+#include <cctype>
 #include <stdexcept>
+#include <string_view>
 #include <variant>
+
+#include <pugixml.hpp>
 
 #include <Aspose/Slides/Foss/_internal/opc/opc_package.h>
 #include <Aspose/Slides/Foss/_internal/pptx/app_properties_part.h>
@@ -112,6 +116,71 @@ Internal::pptx::CustomPropertiesPart& DocumentProperties::ensure_custom() {
             *package_);
     }
     return *custom_part_;
+}
+
+namespace {
+
+/// Number of whitespace-separated tokens in @p text.
+int count_words(std::string_view text) {
+    int words = 0;
+    bool in_word = false;
+    for (unsigned char ch : text) {
+        const bool space = std::isspace(ch) != 0;
+        if (!space && !in_word) ++words;
+        in_word = !space;
+    }
+    return words;
+}
+
+} // namespace
+
+void DocumentProperties::refresh_statistics(
+    const Internal::opc::InMemoryOpcPackage& package) {
+    int slides = 0;
+    int hidden = 0;
+    int notes = 0;
+    int paragraphs = 0;
+    int words = 0;
+
+    for (const auto& name : package.get_part_names()) {
+        const bool is_slide = name.starts_with("ppt/slides/slide") &&
+                              name.ends_with(".xml");
+        const bool is_notes = name.starts_with("ppt/notesSlides/notesSlide") &&
+                              name.ends_with(".xml");
+        if (!is_slide && !is_notes) continue;
+
+        if (is_slide) ++slides;
+        if (is_notes) ++notes;
+
+        auto content = package.get_part(name);
+        if (!content) continue;
+
+        pugi::xml_document doc;
+        if (!doc.load_buffer(content->data(), content->size())) continue;
+
+        // A hidden slide carries show="0" on p:sld; the attribute defaults to
+        // true and is normally absent.
+        if (is_slide) {
+            auto show = doc.document_element().attribute("show");
+            if (show && !show.as_bool(true)) ++hidden;
+        }
+
+        // Count what the file actually says, so the two serialisers cannot
+        // disagree with docProps about the same deck.
+        for (auto node : doc.select_nodes("//a:p")) {
+            (void)node;
+            ++paragraphs;
+        }
+        for (auto node : doc.select_nodes("//a:t")) {
+            words += count_words(node.node().text().as_string());
+        }
+    }
+
+    slides_count_ = slides;
+    hidden_slides_count_ = hidden;
+    notes_count_ = notes;
+    paragraphs_count_ = paragraphs;
+    words_count_ = words;
 }
 
 void DocumentProperties::save_to_package() {

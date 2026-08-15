@@ -15,7 +15,10 @@
 #include <Aspose/Slides/Foss/heading_pair.h>
 #include <Aspose/Slides/Foss/i_document_properties.h>
 
-namespace Aspose::Slides::Foss::Internal::opc { class OpcPackage; }
+namespace Aspose::Slides::Foss::Internal::opc {
+class OpcPackage;
+class InMemoryOpcPackage;
+} // namespace Aspose::Slides::Foss::Internal::opc
 namespace Aspose::Slides::Foss::Internal::pptx {
 class CorePropertiesPart;
 class AppPropertiesPart;
@@ -243,6 +246,16 @@ private:
 
     /// Serialize all loaded parts back to the package.
     void save_to_package();
+
+    /// Recount the deck statistics `docProps/app.xml` reports, by reading the
+    /// slide parts that were just written into @p package.
+    ///
+    /// Slides, notes, paragraphs and words are facts about the deck, not
+    /// properties the caller sets, and they are only right if they are
+    /// recomputed at save time. Counting the produced XML rather than the
+    /// object model also keeps them true whichever serialiser wrote the
+    /// slides.
+    void refresh_statistics(const Internal::opc::InMemoryOpcPackage& package);
 
     // OPC package binding
     Internal::opc::OpcPackage* package_ = nullptr;
