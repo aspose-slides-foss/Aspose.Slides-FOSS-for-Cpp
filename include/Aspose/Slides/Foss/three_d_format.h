@@ -66,9 +66,10 @@ public:
     [[nodiscard]] double depth() const noexcept { return depth_; }
     void set_depth(double value) noexcept;
 
-    /// Returns the extrusion height.
+    /// Returns the extrusion height. This is the same OOXML attribute as
+    /// depth() - a:sp3d/@extrusionH - under its other name.
     [[nodiscard]] double extrusion_height() const noexcept { return extrusion_height_; }
-    void set_extrusion_height(double value) noexcept { extrusion_height_ = value; }
+    void set_extrusion_height(double value) noexcept;
 
     /// Returns the extrusion color.
     [[nodiscard]] SimpleColorFormat& extrusion_color() noexcept { return extrusion_color_; }
@@ -76,7 +77,7 @@ public:
 
     /// Returns the contour width.
     [[nodiscard]] double contour_width() const noexcept { return contour_width_; }
-    void set_contour_width(double value) noexcept { contour_width_ = value; }
+    void set_contour_width(double value) noexcept;
 
     /// Returns the contour color.
     [[nodiscard]] SimpleColorFormat& contour_color() noexcept { return contour_color_; }
