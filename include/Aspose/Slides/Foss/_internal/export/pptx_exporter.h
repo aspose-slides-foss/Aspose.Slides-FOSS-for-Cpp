@@ -62,12 +62,31 @@ public:
     /// @return List of format strings: {"Pptx", "Pptm", "Ppsx", "Ppsm", "Potx", "Potm"}.
     [[nodiscard]] static std::vector<std::string> get_supported_formats();
 
-private:
-    /// Update the content type of the main presentation part if converting.
+    /// Check whether this exporter handles the given format.
     ///
-    /// This is needed when saving as a different format than the source
-    /// (e.g., saving a PPTX as POTX).
+    /// @param format_value A SaveFormat value string, e.g. "Potx" or "Pdf".
+    /// @return True for the six OPC presentation formats, false otherwise.
+    [[nodiscard]] static bool is_format_supported(std::string_view format_value);
+
+    /// The main presentation part content type a format requires.
+    ///
+    /// The six OPC presentation formats share one package layout and differ
+    /// only in this one string. PowerPoint refuses a file whose extension and
+    /// main content type disagree, so it is not optional.
+    ///
+    /// @param format_value A SaveFormat value string.
+    /// @return The content type, or an empty string for an unsupported format.
+    [[nodiscard]] static std::string_view main_content_type_for(
+        std::string_view format_value);
+
+    /// Update the content type of the main presentation part.
+    ///
+    /// Resolves the main part through the package's root relationships and
+    /// writes the content type the target format requires, replacing whatever
+    /// the source package declared.
     void update_content_type_if_needed(opc::OpcPackage& package);
+
+private:
 
     /// Mapping from SaveFormat values to main presentation content types.
     static const std::unordered_map<std::string, std::string> kContentTypes;

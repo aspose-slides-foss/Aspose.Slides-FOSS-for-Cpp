@@ -11,6 +11,7 @@
 
 #include <pugixml.hpp>
 
+#include <Aspose/Slides/Foss/_internal/export/pptx_exporter.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types_manager.h>
 #include <Aspose/Slides/Foss/_internal/opc/opc_package.h>
@@ -385,9 +386,20 @@ std::vector<uint8_t> serialize_xml(pugi::xml_document& doc) {
 
 } // anonymous namespace
 
-void Presentation::save(std::string_view path, SaveFormat /*format*/) {
+void Presentation::save(std::string_view path, SaveFormat format) {
     namespace opc = Internal::opc;
     namespace pptx = Internal::pptx;
+    namespace export_ = Internal::export_;
+
+    // Only the six OPC presentation formats are implemented. Writing a PPTX
+    // package and naming it after some other format is worse than refusing:
+    // the call reports success and the user is left with a file PowerPoint
+    // rejects, saying its extension has changed.
+    const std::string format_name(to_string_view(format));
+    if (!export_::PptxExporter::is_format_supported(format_name)) {
+        throw std::invalid_argument(
+            "Export format '" + format_name + "' is not supported");
+    }
 
     int img_counter = 1;
 
@@ -1256,7 +1268,10 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
     document_properties_.save_to_package();
 
     // --- Write the ZIP file to disk ---
-    pkg->save(std::filesystem::path(std::string(path)));
+    // Through the exporter for the requested format, which stamps the main
+    // part with that format's content type before the package is written.
+    export_::PptxExporterFactory::create_for_format(format_name)
+        ->export_presentation(*pkg, path);
 }
 
 void Presentation::dispose() {
