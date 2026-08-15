@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/reflection.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 #include <string_view>
@@ -49,6 +50,10 @@ const char* alignment_to_ooxml(RectangleAlignment val) {
 constexpr int kPercentUnit = 1000;
 
 } // namespace
+
+const char* rectangle_alignment_to_ooxml(RectangleAlignment value) {
+    return alignment_to_ooxml(value);
+}
 
 void Reflection::init_internal(pugi::xml_node element,
                                std::function<void()> save_callback,
@@ -155,7 +160,7 @@ double Reflection::scale_vertical() const noexcept { return scale_vertical_; }
 void Reflection::set_start_pos_alpha(double value) noexcept {
     start_pos_alpha_ = value;
     if (element_) {
-        element_.attribute("stPos").set_value(
+        Internal::pptx::set_attribute(element_, "stPos", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -164,7 +169,7 @@ void Reflection::set_start_pos_alpha(double value) noexcept {
 void Reflection::set_end_pos_alpha(double value) noexcept {
     end_pos_alpha_ = value;
     if (element_) {
-        element_.attribute("endPos").set_value(
+        Internal::pptx::set_attribute(element_, "endPos", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -173,7 +178,7 @@ void Reflection::set_end_pos_alpha(double value) noexcept {
 void Reflection::set_fade_direction(double value) noexcept {
     fade_direction_ = value;
     if (element_) {
-        element_.attribute("fadeDir").set_value(
+        Internal::pptx::set_attribute(element_, "fadeDir", 
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -182,7 +187,7 @@ void Reflection::set_fade_direction(double value) noexcept {
 void Reflection::set_start_reflection_opacity(double value) noexcept {
     start_reflection_opacity_ = value;
     if (element_) {
-        element_.attribute("stA").set_value(
+        Internal::pptx::set_attribute(element_, "stA", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -191,7 +196,7 @@ void Reflection::set_start_reflection_opacity(double value) noexcept {
 void Reflection::set_end_reflection_opacity(double value) noexcept {
     end_reflection_opacity_ = value;
     if (element_) {
-        element_.attribute("endA").set_value(
+        Internal::pptx::set_attribute(element_, "endA", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -200,7 +205,7 @@ void Reflection::set_end_reflection_opacity(double value) noexcept {
 void Reflection::set_blur_radius(double value) noexcept {
     blur_radius_ = value;
     if (element_) {
-        element_.attribute("blurRad").set_value(
+        Internal::pptx::set_attribute(element_, "blurRad", 
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
@@ -209,7 +214,7 @@ void Reflection::set_blur_radius(double value) noexcept {
 void Reflection::set_direction(double value) noexcept {
     direction_ = value;
     if (element_) {
-        element_.attribute("dir").set_value(
+        Internal::pptx::set_attribute(element_, "dir", 
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -218,7 +223,7 @@ void Reflection::set_direction(double value) noexcept {
 void Reflection::set_distance(double value) noexcept {
     distance_ = value;
     if (element_) {
-        element_.attribute("dist").set_value(
+        Internal::pptx::set_attribute(element_, "dist", 
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
@@ -228,7 +233,7 @@ void Reflection::set_rectangle_align(RectangleAlignment value) noexcept {
     rectangle_align_ = value;
     if (element_) {
         if (auto* ooxml_val = alignment_to_ooxml(value); ooxml_val) {
-            element_.attribute("algn").set_value(ooxml_val);
+            Internal::pptx::set_attribute(element_, "algn", ooxml_val);
         }
     }
     if (save_callback_) save_callback_();
@@ -237,7 +242,7 @@ void Reflection::set_rectangle_align(RectangleAlignment value) noexcept {
 void Reflection::set_skew_horizontal(double value) noexcept {
     skew_horizontal_ = value;
     if (element_) {
-        element_.attribute("kx").set_value(
+        Internal::pptx::set_attribute(element_, "kx", 
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -246,7 +251,7 @@ void Reflection::set_skew_horizontal(double value) noexcept {
 void Reflection::set_skew_vertical(double value) noexcept {
     skew_vertical_ = value;
     if (element_) {
-        element_.attribute("ky").set_value(
+        Internal::pptx::set_attribute(element_, "ky", 
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -255,7 +260,7 @@ void Reflection::set_skew_vertical(double value) noexcept {
 void Reflection::set_rotate_shadow_with_shape(bool value) noexcept {
     rotate_shadow_with_shape_ = value;
     if (element_) {
-        element_.attribute("rotWithShape").set_value(value ? "1" : "0");
+        Internal::pptx::set_attribute(element_, "rotWithShape", value ? "1" : "0");
     }
     if (save_callback_) save_callback_();
 }
@@ -263,7 +268,7 @@ void Reflection::set_rotate_shadow_with_shape(bool value) noexcept {
 void Reflection::set_scale_horizontal(double value) noexcept {
     scale_horizontal_ = value;
     if (element_) {
-        element_.attribute("sx").set_value(
+        Internal::pptx::set_attribute(element_, "sx", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -272,7 +277,7 @@ void Reflection::set_scale_horizontal(double value) noexcept {
 void Reflection::set_scale_vertical(double value) noexcept {
     scale_vertical_ = value;
     if (element_) {
-        element_.attribute("sy").set_value(
+        Internal::pptx::set_attribute(element_, "sy", 
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();

@@ -29,6 +29,7 @@
 #include <Aspose/Slides/Foss/fill_type.h>
 #include <Aspose/Slides/Foss/preset_shadow_type.h>
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/shape.h>
 #include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/slide.h>
@@ -194,6 +195,32 @@ TEST_F(EffectsConformance, AnEnabledEffectNeverLeavesAnEmptyEffectList) {
     ASSERT_TRUE(node) << "no a:effectLst was written at all";
     EXPECT_FALSE(conformance::ChildNames(node).empty())
         << "an effect was enabled and the effect list is empty";
+}
+
+/// A deck opened from a file takes the XML-backed path, where every effect
+/// setter writes straight into the slide part. `xml_node::attribute(name)`
+/// returns a null attribute when the element does not carry `name`, and
+/// `set_value` on a null attribute is a silent no-op — so on a freshly enabled
+/// effect, whose element has no attributes yet, every setter wrote nothing and
+/// reported success.
+TEST_F(EffectsConformance, EffectPropertiesSetOnALoadedDeckReachTheFile) {
+    Presentation pres;
+    fresh_shape(pres);
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto& ef = loaded.slides()[0].shapes()[0].effect_format();
+    ef.enable_inner_shadow_effect();
+    auto* shadow = ef.inner_shadow_effect();
+    ASSERT_NE(shadow, nullptr);
+    shadow->set_blur_radius(8);  // 8 pt -> 101600 EMU
+    shadow->set_distance(5);     // 5 pt -> 63500 EMU
+    shadow->set_direction(45);   // 45 deg -> 2700000
+
+    conformance::Package pkg(save_to(loaded, path_for("shadowed.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(
+        pkg, kSlide, "//a:effectLst/a:innerShdw",
+        {{"blurRad", "101600"}, {"dist", "63500"}, {"dir", "2700000"}}));
 }
 
 } // namespace

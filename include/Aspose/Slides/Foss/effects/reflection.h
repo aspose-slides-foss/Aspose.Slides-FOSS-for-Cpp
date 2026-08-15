@@ -15,6 +15,11 @@ class IBaseSlide;
 
 namespace Aspose::Slides::Foss::Effects {
 
+/// Returns the ST_RectAlignment token ("tl", "ctr", "bl", …) for an alignment,
+/// or nullptr for NOT_DEFINED — in which case @algn must be omitted so the
+/// schema default applies.
+const char* rectangle_alignment_to_ooxml(RectangleAlignment value);
+
 /// Represents a reflection effect applied to a shape.
 class Reflection final : public IReflection, public IImageTransformOperation {
 public:

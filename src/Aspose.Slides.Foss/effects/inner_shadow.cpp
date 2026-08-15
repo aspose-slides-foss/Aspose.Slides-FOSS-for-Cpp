@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/inner_shadow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 
@@ -45,7 +46,7 @@ void InnerShadow::set_blur_radius(double value) noexcept {
 
     if (element_) {
         auto emu = static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint));
-        element_.attribute("blurRad").set_value(emu);
+        Internal::pptx::set_attribute(element_, "blurRad", emu);
     }
 
     if (save_callback_) {
@@ -62,7 +63,7 @@ void InnerShadow::set_direction(double value) noexcept {
 
     if (element_) {
         auto units = static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit));
-        element_.attribute("dir").set_value(units);
+        Internal::pptx::set_attribute(element_, "dir", units);
     }
 
     if (save_callback_) {
@@ -79,7 +80,7 @@ void InnerShadow::set_distance(double value) noexcept {
 
     if (element_) {
         auto emu = static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint));
-        element_.attribute("dist").set_value(emu);
+        Internal::pptx::set_attribute(element_, "dist", emu);
     }
 
     if (save_callback_) {

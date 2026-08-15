@@ -18,6 +18,11 @@ class IPresentationComponent;
 
 namespace Aspose::Slides::Foss::Effects {
 
+/// Returns the ST_BlendMode token for a FillBlendMode value ("mult", "over", …).
+///
+/// These are not the display names returned by `to_string_view(FillBlendMode)`.
+const char* fill_blend_mode_to_ooxml(FillBlendMode value);
+
 /// Represents a Fill Overlay effect.
 ///
 /// A fill overlay specifies an additional fill for an object
@@ -46,7 +51,7 @@ public:
     [[nodiscard]] FillBlendMode blend() const noexcept override { return blend_; }
 
     /// Sets the fill blend mode.
-    void set_blend(FillBlendMode value) noexcept override { blend_ = value; }
+    void set_blend(FillBlendMode value) noexcept override;
 
     /// Returns the fill format associated with this overlay. Read-only.
     [[nodiscard]] IFillFormat& fill_format() noexcept override { return fill_format_; }
