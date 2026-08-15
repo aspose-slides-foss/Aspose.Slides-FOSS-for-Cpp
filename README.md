@@ -240,6 +240,41 @@ The following areas are not yet available:
 - VBA macros, digital signatures
 - Hyperlinks and action settings
 
+### Save formats
+
+`save()` writes the six Office Open XML presentation formats: `Pptx`, `Pptm`,
+`Ppsx`, `Ppsm`, `Potx` and `Potm`. They share one package layout and differ
+only in the content type of the main presentation part. The macro-enabled
+three are written without a VBA project, since macros are not supported.
+
+Every other `SaveFormat` value — `Pdf`, `Html`, `Odp`, `Ppt`, image formats and
+the rest — **throws `std::invalid_argument`**. It used to return successfully,
+having written a PPTX under the requested name, which left the caller with a
+file PowerPoint refuses to open and nothing to indicate why.
+
+```cpp
+pres.save("report.pdf", SaveFormat::PDF);  // throws std::invalid_argument
+```
+
+Note also that the format decides the content type and the file name decides
+nothing: `save("deck.pptx", SaveFormat::POTX)` writes a correct template under
+a `.pptx` name, and PowerPoint refuses a file whose extension and content type
+disagree. Name the file for the format you asked for.
+
+### Placeholder geometry
+
+`Shape::x()`, `y()`, `width()` and `height()` resolve placeholder inheritance:
+a placeholder with no `a:xfrm` of its own reports the position and size it
+takes from its layout or master.
+
+The XML-level accessor `Shape::get_xfrm()` does **not**. It returns this
+shape's own `a:xfrm` and an empty node when there is none. It used to return
+the inherited element, which lives in a layout or master part shared by every
+slide that uses it and must never be handed out for mutation — and which was
+parsed into a document that had already been destroyed, so reading it was
+undefined behaviour. Read inherited geometry with `Shape::get_inherited_frame()`,
+which returns a value. `get_inherited_xfrm()` has been removed.
+
 Unknown XML parts encountered during load are preserved verbatim on save —
 opening and re-saving a file will never strip content this library does not yet understand.
 

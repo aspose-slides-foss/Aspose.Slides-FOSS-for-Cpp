@@ -33,3 +33,7 @@ Testing/
 .DS_Store
 Thumbs.db
 
+
+# Python bytecode (the conformance scripts under tests/conformance)
+__pycache__/
+*.pyc
