@@ -1247,10 +1247,20 @@ void Presentation::save(std::string_view path, SaveFormat format) {
 
             if (!has_comments) continue;
 
-            // Create or load the comments part for this slide.
+            // Reuse the comments part the slide already has, if any. A slide
+            // may carry at most one comments relationship; creating a second
+            // one on every save produces a package PowerPoint refuses. The
+            // in-memory comment list is the whole truth for this slide, so the
+            // part is emptied and rewritten rather than appended to, which
+            // would duplicate every comment that was loaded from it.
             opc::RelationshipsManager slide_rels(*pkg, slide_part_name);
-            auto comments_part = pptx::CommentsPart::create_for_slide(
-                *pkg, slide_part_name, &slide_rels);
+            auto existing =
+                pptx::CommentsPart::load_for_slide(*pkg, slide_part_name);
+            auto comments_part = existing
+                ? std::move(*existing)
+                : pptx::CommentsPart::create_for_slide(
+                      *pkg, slide_part_name, &slide_rels);
+            comments_part.clear();
             slide_rels.save();
 
             // Add each comment for this slide.
