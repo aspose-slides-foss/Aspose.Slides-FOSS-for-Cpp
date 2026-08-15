@@ -255,7 +255,11 @@ private:
     /// recomputed at save time. Counting the produced XML rather than the
     /// object model also keeps them true whichever serialiser wrote the
     /// slides.
-    void refresh_statistics(const Internal::opc::InMemoryOpcPackage& package);
+    /// @param presentation_part Name of the main presentation part, whose
+    ///        `p:sldIdLst` decides which parts count as slides of this deck.
+    void refresh_statistics(const Internal::opc::InMemoryOpcPackage& package,
+                            std::string_view presentation_part =
+                                "ppt/presentation.xml");
 
     // OPC package binding
     Internal::opc::OpcPackage* package_ = nullptr;

@@ -97,6 +97,42 @@ TEST_F(DocumentPropertiesConformance, AppPropertiesReportTheNotesCount) {
     EXPECT_EQ(app_property(pkg, "Notes"), "1");
 }
 
+/// And it has to count the words it actually shipped.
+TEST_F(DocumentPropertiesConformance, AppPropertiesReportTheActualWordCount) {
+    Presentation pres;
+    auto& shape = pres.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 50, 300, 80);
+    shape.text_frame()->set_text("four words go here");
+
+    auto pkg = save_and_inspect(pres);
+    ASSERT_TRUE(pkg.has_entry(kAppProps));
+    EXPECT_EQ(app_property(pkg, "Words"), "4");
+}
+
+/// `<Slides>` is the number of slides the presentation registers, not the
+/// number of slide-shaped parts in the package. A part that survives in the
+/// ZIP without a `<p:sldId>` pointing at it is not a slide of this deck, and
+/// counting it makes docProps disagree with what opens.
+TEST_F(DocumentPropertiesConformance, AnUnregisteredSlidePartIsNotCounted) {
+    Presentation pres;
+    auto* layout = &pres.layout_slides()[0];
+    pres.slides().add_empty_slide(layout);
+    auto path = save(pres, "two.pptx");
+
+    // Remove the second slide and save again. The part may or may not be
+    // carried over, but the count must follow p:sldIdLst either way.
+    Presentation loaded(path.string());
+    ASSERT_EQ(loaded.slides().size(), 2u);
+    loaded.slides().remove_at(1);
+
+    conformance::Package pkg(save_to(loaded, path_for("one.pptx")));
+    EXPECT_EQ(conformance::CountMatches(pkg, "ppt/presentation.xml",
+                                        "//p:sldIdLst/p:sldId"),
+              1u);
+    EXPECT_EQ(app_property(pkg, "Slides"), "1")
+        << "docProps counts slide-shaped parts rather than registered slides";
+}
+
 /// The title and author the caller set are written correctly today; this pins
 /// the half of docProps that already works.
 TEST_F(DocumentPropertiesConformance, TheTitleAndAuthorThatWereSetAreWritten) {

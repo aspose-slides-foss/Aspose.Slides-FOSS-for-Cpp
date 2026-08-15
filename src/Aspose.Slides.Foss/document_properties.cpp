@@ -6,12 +6,15 @@
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 #include <pugixml.hpp>
 
 #include <Aspose/Slides/Foss/_internal/opc/opc_package.h>
+#include <Aspose/Slides/Foss/_internal/opc/relationships_manager.h>
 #include <Aspose/Slides/Foss/_internal/pptx/app_properties_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/core_properties_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/custom_properties_part.h>
@@ -134,17 +137,60 @@ int count_words(std::string_view text) {
 
 } // namespace
 
+/// The slide parts the presentation actually registers, in `p:sldIdLst` order.
+///
+/// A slide-shaped part in the ZIP is not a slide of the deck: what makes it
+/// one is a `<p:sldId>` whose `r:id` resolves to it. An orphan part that
+/// survives a deletion would otherwise be counted, and docProps would disagree
+/// with what opens.
+static std::vector<std::string> registered_slide_parts(
+    const Internal::opc::InMemoryOpcPackage& package,
+    std::string_view presentation_part) {
+    std::vector<std::string> result;
+
+    auto content = package.get_part(std::string(presentation_part));
+    if (!content) return result;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(content->data(), content->size())) return result;
+
+    auto slash = presentation_part.rfind('/');
+    const std::string base =
+        slash == std::string_view::npos
+            ? std::string{}
+            : std::string(presentation_part.substr(0, slash + 1));
+
+    Internal::opc::RelationshipsManager rels(
+        const_cast<Internal::opc::InMemoryOpcPackage&>(package),
+        std::string(presentation_part));
+
+    for (auto sld_id :
+         doc.document_element().child("p:sldIdLst").children("p:sldId")) {
+        auto r_id = sld_id.attribute("r:id").as_string("");
+        if (!*r_id) continue;
+        auto rel = rels.get_relationship(r_id);
+        if (!rel) continue;
+        result.push_back(rel->target.starts_with("/")
+                             ? rel->target.substr(1)
+                             : base + rel->target);
+    }
+    return result;
+}
+
 void DocumentProperties::refresh_statistics(
-    const Internal::opc::InMemoryOpcPackage& package) {
+    const Internal::opc::InMemoryOpcPackage& package,
+    std::string_view presentation_part) {
     int slides = 0;
     int hidden = 0;
     int notes = 0;
     int paragraphs = 0;
     int words = 0;
 
+    const auto slide_parts = registered_slide_parts(package, presentation_part);
+
     for (const auto& name : package.get_part_names()) {
-        const bool is_slide = name.starts_with("ppt/slides/slide") &&
-                              name.ends_with(".xml");
+        const bool is_slide =
+            std::find(slide_parts.begin(), slide_parts.end(), name) !=
+            slide_parts.end();
         const bool is_notes = name.starts_with("ppt/notesSlides/notesSlide") &&
                               name.ends_with(".xml");
         if (!is_slide && !is_notes) continue;

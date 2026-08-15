@@ -1345,7 +1345,7 @@ void Presentation::save(std::string_view path, SaveFormat format) {
     // Slides, notes, paragraphs and words describe the deck that was just
     // assembled, so they are recounted here rather than reported from
     // whatever the template shipped with.
-    document_properties_.refresh_statistics(*pkg);
+    document_properties_.refresh_statistics(*pkg, pres_part);
     document_properties_.save_to_package();
 
     // --- Write the ZIP file to disk ---
