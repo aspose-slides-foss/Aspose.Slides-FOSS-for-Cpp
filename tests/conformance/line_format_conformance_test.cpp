@@ -27,6 +27,7 @@
 #include <Aspose/Slides/Foss/line_join_style.h>
 #include <Aspose/Slides/Foss/line_style.h>
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/shape.h>
 #include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/slide.h>
@@ -145,6 +146,32 @@ TEST_F(LineFormatConformance, LineChildrenAreWrittenInSchemaOrder) {
     EXPECT_TRUE(conformance::ChildOrderIs(
         pkg, kSlide, "//p:spPr/a:ln",
         {"a:solidFill", "a:prstDash", "a:round", "a:headEnd", "a:tailEnd"}));
+}
+
+/// A deck opened from a file takes the XML-backed path, where the shape's
+/// `<a:ln>` already exists. None of `LineFormat`'s setters touched it: they
+/// were defined inline in the header and only ever assigned a member, so on a
+/// loaded deck every line property was accepted, read back, and dropped.
+TEST_F(LineFormatConformance, LinePropertiesSetOnALoadedDeckReachTheFile) {
+    Presentation pres;
+    pres.slides()[0].shapes().add_auto_shape(ShapeType::RECTANGLE, 50, 50, 200,
+                                             100);
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto& line = loaded.slides()[0].shapes()[0].line_format();
+    line.set_width(6); // 6 pt -> 76200 EMU
+    line.set_dash_style(LineDashStyle::DASH_DOT);
+    line.set_cap_style(LineCapStyle::ROUND);
+    line.set_begin_arrowhead_style(LineArrowheadStyle::TRIANGLE);
+
+    conformance::Package pkg(save_to(loaded, path_for("outlined.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide, "//p:spPr/a:ln",
+                                           {{"w", "76200"}, {"cap", "rnd"}}));
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide, "//a:ln/a:prstDash",
+                                           {{"val", "dashDot"}}));
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide, "//a:ln/a:headEnd",
+                                           {{"type", "triangle"}}));
 }
 
 } // namespace
