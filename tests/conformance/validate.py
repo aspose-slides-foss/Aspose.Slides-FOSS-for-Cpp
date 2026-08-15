@@ -260,10 +260,26 @@ def check_slide_registration(zf: zipfile.ZipFile) -> list[str]:
     return problems
 
 
+# python-pptx opens only these two members of the PPTX family: its package
+# reader maps exactly these content types to a presentation part and raises
+# ValueError("is not a PowerPoint file") for the rest.  A template or a
+# slideshow package is a perfectly valid file that PowerPoint opens; the
+# reader's narrower range is not a finding about the package, so those are
+# skipped rather than reported.
+PYTHON_PPTX_READABLE_MAIN_TYPES = {
+    PML + "presentation.main+xml",
+    "application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml",
+}
+
+
 def check_python_pptx(path: pathlib.Path) -> list[str]:
     try:
         from pptx import Presentation  # type: ignore[import-not-found]
     except ImportError:
+        return []
+    ext = path.suffix.lstrip(".").lower()
+    main_type = MAIN_CONTENT_TYPE_BY_EXTENSION.get(ext)
+    if main_type is not None and main_type not in PYTHON_PPTX_READABLE_MAIN_TYPES:
         return []
     try:
         deck = Presentation(str(path))
