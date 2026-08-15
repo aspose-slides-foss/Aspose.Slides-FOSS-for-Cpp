@@ -99,10 +99,14 @@ TEST_F(CommentsConformance, ResavingACommentedDeckDoesNotDuplicateTheComment) {
     EXPECT_TRUE(conformance::PackageIsInternallyConsistent(pkg));
 }
 
-/// A reply is modelled in the API and reported back in memory. The README
-/// advertises threaded comments, so a reply has to survive being written down:
-/// modern threading is a `ppt/threadedComments/` part relating replies to
-/// their parent, and nothing else in the format expresses a thread.
+/// A reply is modelled in the API and reported back in memory, and the README
+/// advertises threaded comments, so a reply has to survive being written down.
+///
+/// `CT_Comment` has no attribute for a parent. A thread on a classic comment
+/// is expressed in the extension list, under the `p:ext` whose `@uri` is
+/// `{C676402C-5697-4E1C-873F-D02D1690AC5C}`: a `<p15:threadingInfo>` holding a
+/// `<p15:parentCm>` that names the parent by author and index. A `parentCmId`
+/// attribute on `p:cm` is not in the schema and no consumer reads it.
 ///
 /// If the project instead decides not to implement threading, the honest
 /// change is to drop the claim from the README and make `set_parent_comment`
@@ -119,9 +123,46 @@ TEST_F(CommentsConformance, AReplyToACommentIsWrittenAsAThread) {
     reply.set_parent_comment(&parent);
 
     auto pkg = save_and_inspect(pres);
-    EXPECT_FALSE(pkg.entries_matching("^ppt/threadedComments/").empty())
+    const auto& xml = pkg.xml("ppt/comments/slide1.xml");
+
+    // The reply names its parent, and the parent names nobody.
+    EXPECT_EQ(conformance::CountMatches(pkg, "ppt/comments/slide1.xml",
+                                        "//p15:parentCm"),
+              1u)
         << "the package carries two independent flat comments; the reply "
            "relationship the caller expressed is not in the file";
+
+    auto parent_cm = xml.select_node("//p15:parentCm").node();
+    ASSERT_TRUE(parent_cm);
+    EXPECT_STREQ(parent_cm.attribute("idx").value(), "1");
+
+    // p:cm has no parentCmId attribute in any version of the schema.
+    for (auto cm : xml.select_nodes("//p:cm")) {
+        EXPECT_FALSE(cm.node().attribute("parentCmId"))
+            << "parentCmId is not a declared attribute of p:cm";
+    }
+}
+
+/// Re-saving a deck that was opened from a file must keep the thread. The
+/// reader has to understand the extension the writer produces, or one
+/// round trip flattens every reply back into a top-level comment.
+TEST_F(CommentsConformance, AThreadSurvivesBeingReopenedAndSavedAgain) {
+    Presentation pres;
+    auto& author = pres.comment_authors().add_author("Alice", "A");
+    auto& parent = author.comments().add_comment(
+        "Review note", pres.slides()[0], PointF(2.0f, 3.0f), fixed_time());
+    auto& reply = author.comments().add_comment(
+        "Agreed", pres.slides()[0], PointF(2.0f, 3.5f), fixed_time());
+    reply.set_parent_comment(&parent);
+    auto first = save(pres, "first.pptx");
+
+    Presentation reloaded(first.string());
+    conformance::Package pkg(save_to(reloaded, path_for("second.pptx")));
+
+    EXPECT_EQ(conformance::CountMatches(pkg, "ppt/comments/slide1.xml",
+                                        "//p15:parentCm"),
+              1u);
+    EXPECT_TRUE(conformance::PackageIsInternallyConsistent(pkg));
 }
 
 } // namespace

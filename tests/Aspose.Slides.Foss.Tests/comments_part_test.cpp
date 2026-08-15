@@ -92,7 +92,7 @@ TEST(CommentDataTest, ReadAttributes) {
     EXPECT_EQ(comments[0].text(), "First comment");
     EXPECT_DOUBLE_EQ(comments[0].pos_x(), 1.0);  // 360000 / 360000
     EXPECT_DOUBLE_EQ(comments[0].pos_y(), 2.0);  // 720000 / 360000
-    EXPECT_FALSE(comments[0].parent_cm_id().has_value());
+    EXPECT_FALSE(comments[0].parent_comment().has_value());
 
     EXPECT_EQ(comments[1].author_id(), 1);
     EXPECT_EQ(comments[1].idx(), 2);
@@ -119,20 +119,21 @@ TEST(CommentDataTest, SetDtStr) {
     EXPECT_EQ(comments[0].dt_str(), "2025-01-01T00:00:00.000");
 }
 
-TEST(CommentDataTest, SetParentCmId) {
+TEST(CommentDataTest, SetParentComment) {
     opc::InMemoryOpcPackage pkg;
     seed_two_comments(pkg, "ppt/comments/slide1.xml");
     CommentsPart part(pkg, "ppt/comments/slide1.xml");
 
     auto comments = part.get_comments();
-    EXPECT_FALSE(comments[0].parent_cm_id().has_value());
+    EXPECT_FALSE(comments[0].parent_comment().has_value());
 
-    comments[0].set_parent_cm_id(42);
-    EXPECT_TRUE(comments[0].parent_cm_id().has_value());
-    EXPECT_EQ(*comments[0].parent_cm_id(), 42);
+    comments[0].set_parent_comment(ParentCommentRef{1, 42});
+    ASSERT_TRUE(comments[0].parent_comment().has_value());
+    EXPECT_EQ(comments[0].parent_comment()->author_id, 1);
+    EXPECT_EQ(comments[0].parent_comment()->idx, 42);
 
-    comments[0].set_parent_cm_id(std::nullopt);
-    EXPECT_FALSE(comments[0].parent_cm_id().has_value());
+    comments[0].set_parent_comment(std::nullopt);
+    EXPECT_FALSE(comments[0].parent_comment().has_value());
 }
 
 TEST(CommentDataTest, SetPosition) {
@@ -222,7 +223,7 @@ TEST(CommentsPartTest, AddComment) {
     EXPECT_EQ(cd.idx(), 1);
     EXPECT_DOUBLE_EQ(cd.pos_x(), 2.5);
     EXPECT_DOUBLE_EQ(cd.pos_y(), 3.0);
-    EXPECT_FALSE(cd.parent_cm_id().has_value());
+    EXPECT_FALSE(cd.parent_comment().has_value());
 }
 
 TEST(CommentsPartTest, AddCommentWithParent) {
@@ -232,10 +233,12 @@ TEST(CommentsPartTest, AddCommentWithParent) {
 
     part.add_comment(0, 1, "Parent", 1.0, 1.0, "2024-06-01T12:00:00.000");
     auto reply = part.add_comment(0, 2, "Reply", 1.0, 1.0,
-                                  "2024-06-01T12:01:00.000", 1);
+                                  "2024-06-01T12:01:00.000",
+                                  ParentCommentRef{0, 1});
     EXPECT_EQ(part.count(), 2);
-    ASSERT_TRUE(reply.parent_cm_id().has_value());
-    EXPECT_EQ(*reply.parent_cm_id(), 1);
+    ASSERT_TRUE(reply.parent_comment().has_value());
+    EXPECT_EQ(reply.parent_comment()->author_id, 0);
+    EXPECT_EQ(reply.parent_comment()->idx, 1);
 }
 
 TEST(CommentsPartTest, InsertComment) {

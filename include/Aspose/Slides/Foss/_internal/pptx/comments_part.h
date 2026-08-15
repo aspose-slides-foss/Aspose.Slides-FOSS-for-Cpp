@@ -42,6 +42,34 @@ inline constexpr double kCmToEmu = 360000.0;
     std::string_view s);
 
 // ---------------------------------------------------------------------------
+// Comment threading
+// ---------------------------------------------------------------------------
+
+/// Namespace URI of the 2012 PowerPoint extension that carries comment threads.
+inline constexpr std::string_view kP15Namespace =
+    "http://schemas.microsoft.com/office/powerpoint/2012/main";
+
+/// The `p:ext/@uri` that identifies a `<p15:threadingInfo>` extension.
+///
+/// A classic `<p:cm>` has no attribute for a parent comment; threading lives
+/// in the extension list, which is the schema's declared place for it. Every
+/// consumer that understands threads looks for this URI.
+inline constexpr std::string_view kThreadingInfoUri =
+    "{C676402C-5697-4E1C-873F-D02D1690AC5C}";
+
+/// Identifies the comment a reply answers.
+///
+/// `<p15:parentCm>` names the parent by author and index, not by a single id,
+/// because comment indices are only unique within one author.
+struct ParentCommentRef {
+    int32_t author_id = 0;
+    int32_t idx = 0;
+
+    friend bool operator==(const ParentCommentRef&,
+                           const ParentCommentRef&) = default;
+};
+
+// ---------------------------------------------------------------------------
 // CommentData
 // ---------------------------------------------------------------------------
 
@@ -65,9 +93,11 @@ public:
     [[nodiscard]] std::string dt_str() const;
     void set_dt_str(std::string_view value);
 
-    /// Parent comment ID, or std::nullopt if this is a top-level comment.
-    [[nodiscard]] std::optional<int32_t> parent_cm_id() const;
-    void set_parent_cm_id(std::optional<int32_t> value);
+    /// The comment this one replies to, or std::nullopt for a top-level one.
+    ///
+    /// Read from and written to `<p:extLst>/<p:ext>/<p15:threadingInfo>`.
+    [[nodiscard]] std::optional<ParentCommentRef> parent_comment() const;
+    void set_parent_comment(std::optional<ParentCommentRef> value);
 
     /// Comment text content (from the `<p:text>` child element).
     [[nodiscard]] std::string text() const;
@@ -116,7 +146,7 @@ public:
     [[nodiscard]] std::optional<CommentData> find_comment_by_idx(
         int32_t author_id, int32_t idx) const;
 
-    /// Find a comment by index across all authors (for parentCmId lookup).
+    /// Find a comment by index across all authors.
     [[nodiscard]] std::optional<CommentData> find_comment_by_idx_all(
         int32_t idx) const;
 
@@ -124,13 +154,15 @@ public:
     CommentData add_comment(int32_t author_id, int32_t idx,
                             std::string_view text, double pos_x, double pos_y,
                             std::string_view dt_str,
-                            std::optional<int32_t> parent_idx = std::nullopt);
+                            std::optional<ParentCommentRef> parent =
+                                std::nullopt);
 
     /// Insert a comment at the given position among existing comments.
     CommentData insert_comment(int32_t index, int32_t author_id, int32_t idx,
                                std::string_view text, double pos_x,
                                double pos_y, std::string_view dt_str,
-                               std::optional<int32_t> parent_idx = std::nullopt);
+                               std::optional<ParentCommentRef> parent =
+                                   std::nullopt);
 
     /// Remove a specific comment by author ID and index.
     void remove_comment(int32_t author_id, int32_t idx);

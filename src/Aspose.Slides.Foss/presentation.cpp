@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <map>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -156,6 +157,11 @@ Presentation::Presentation(std::string_view path) : masters_(this), slides_(this
                 pptx::CommentsPart::load_for_slide(*opc_package_, slide_part_name);
             if (!comments_part) continue;
 
+            // (authorId, idx) -> the comment object built for it, so a reply
+            // can be linked to its parent once every comment exists.
+            std::map<std::pair<int32_t, int32_t>, Comment*> by_ref;
+            std::vector<std::pair<Comment*, pptx::ParentCommentRef>> replies;
+
             for (auto& cd : comments_part->get_comments()) {
                 int32_t author_id = cd.author_id();
                 // Find the matching author in our collection.
@@ -169,10 +175,22 @@ Presentation::Presentation(std::string_view path) : masters_(this), slides_(this
                         Drawing::PointF pos(
                             static_cast<float>(cd.pos_x()),
                             static_cast<float>(cd.pos_y()));
-                        ca.comments().add_comment(
+                        auto& created = ca.comments().add_comment(
                             cd.text(), slide, pos, tp);
+                        by_ref.emplace(std::pair{author_id, cd.idx()},
+                                       &created);
+                        if (auto parent = cd.parent_comment()) {
+                            replies.emplace_back(&created, *parent);
+                        }
                         break;
                     }
+                }
+            }
+
+            for (auto& [reply, parent_ref] : replies) {
+                auto it = by_ref.find({parent_ref.author_id, parent_ref.idx});
+                if (it != by_ref.end()) {
+                    reply->set_parent_comment(it->second);
                 }
             }
         }
@@ -1272,23 +1290,46 @@ void Presentation::save(std::string_view path, SaveFormat format) {
             comments_part.clear();
             slide_rels.save();
 
-            // Add each comment for this slide.
+            // Allocate every comment's (authorId, idx) before writing any of
+            // them. A reply names its parent by that pair, and the parent may
+            // belong to a different author, so the identities have to exist
+            // before the first element is emitted.
+            struct PendingComment {
+                const Comment* comment;
+                pptx::ParentCommentRef ref;
+            };
+            std::vector<PendingComment> pending;
+            std::unordered_map<const IComment*, pptx::ParentCommentRef> refs;
             for (std::size_t a = 0; a < comment_authors_.size(); ++a) {
                 auto& ca = comment_authors_[a];
                 int32_t aid = author_ids[a];
                 for (std::size_t c = 0; c < ca.comments().size(); ++c) {
                     auto& comment = ca.comments()[c];
                     if (comment.slide() != &slide) continue;
-
-                    auto idx = authors_part.next_comment_idx(aid);
-                    auto dt_str = pptx::dt_to_str(comment.created_time());
-                    comments_part.add_comment(
-                        aid, idx,
-                        comment.text(),
-                        static_cast<double>(comment.position().x),
-                        static_cast<double>(comment.position().y),
-                        dt_str);
+                    pptx::ParentCommentRef ref{
+                        aid, authors_part.next_comment_idx(aid)};
+                    refs.emplace(&comment, ref);
+                    pending.push_back({&comment, ref});
                 }
+            }
+
+            for (const auto& item : pending) {
+                std::optional<pptx::ParentCommentRef> parent;
+                if (auto* p = item.comment->parent_comment()) {
+                    // A parent on another slide cannot be referenced from this
+                    // part, so such a reply is written as a top-level comment
+                    // rather than as a dangling reference.
+                    if (auto it = refs.find(p); it != refs.end()) {
+                        parent = it->second;
+                    }
+                }
+                comments_part.add_comment(
+                    item.ref.author_id, item.ref.idx,
+                    item.comment->text(),
+                    static_cast<double>(item.comment->position().x),
+                    static_cast<double>(item.comment->position().y),
+                    pptx::dt_to_str(item.comment->created_time()),
+                    parent);
             }
 
             authors_part.save();
