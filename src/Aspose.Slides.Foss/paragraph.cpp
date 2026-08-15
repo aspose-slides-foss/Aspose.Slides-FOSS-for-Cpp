@@ -32,18 +32,7 @@ Paragraph::Paragraph(std::string text) : impl_(std::make_unique<Impl>()) {
 
 Paragraph::~Paragraph() = default;
 
-Paragraph::Paragraph(Paragraph&& other) noexcept
-    : impl_(std::move(other.impl_)) {
-    if (impl_) {
-        // Preserve canonical text by keeping only the first portion (created by
-        // the constructor).  Additional portions added afterwards are discarded
-        // so that text() matches the original constructor text and
-        // portions().size() == 1.
-        while (impl_->portions.size() > 1) {
-            impl_->portions.remove_at(impl_->portions.size() - 1);
-        }
-    }
-}
+Paragraph::Paragraph(Paragraph&& other) noexcept = default;
 
 Paragraph& Paragraph::operator=(Paragraph&&) noexcept = default;
 
