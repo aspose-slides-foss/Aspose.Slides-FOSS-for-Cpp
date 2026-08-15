@@ -57,7 +57,7 @@ public:
         requires std::is_base_of_v<ExporterBase, T>
     static void register_exporter() {
         for (const auto& format : T::get_supported_formats()) {
-            exporters_[format] = [format]() -> std::unique_ptr<ExporterBase> {
+            exporters()[format] = [format]() -> std::unique_ptr<ExporterBase> {
                 if constexpr (std::is_constructible_v<T, std::string_view>) {
                     return std::make_unique<T>(std::string_view(format));
                 } else {
@@ -102,7 +102,14 @@ public:
     static void clear();
 
 private:
-    static std::unordered_map<std::string, ExporterFactory> exporters_;
+    /// The format -> factory map.
+    ///
+    /// A function-local static, not a class static: exporters register
+    /// themselves from namespace-scope initialisers in their own translation
+    /// units, and the order in which those run relative to a class static in
+    /// this one is unspecified. Constructing the map on first use makes the
+    /// order irrelevant.
+    static std::unordered_map<std::string, ExporterFactory>& exporters();
 };
 
 } // namespace Aspose::Slides::Foss::Internal::export_
