@@ -203,6 +203,14 @@ public:
                              double x, double y, double w, double h,
                              bool create_from_template);
 
+    /// Build XML content for a new picture (pic) element.
+    /// @param pic The pre-created p:pic node to populate.
+    /// @param embed_id The relationship id of the image, for a:blip/@r:embed.
+    static void build_picture_frame_xml(pugi::xml_node pic, int shape_id,
+                                        std::string_view name, ShapeType type,
+                                        double x, double y, double w, double h,
+                                        std::string_view embed_id);
+
     /// Core implementation for add_auto_shape and insert_auto_shape.
     AutoShape& add_auto_shape_impl(std::optional<std::size_t> index,
                                    ShapeType type, double x, double y,

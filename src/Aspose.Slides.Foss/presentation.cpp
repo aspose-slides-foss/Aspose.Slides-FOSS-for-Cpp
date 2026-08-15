@@ -49,7 +49,9 @@
 #include <Aspose/Slides/Foss/column.h>
 #include <Aspose/Slides/Foss/column_collection.h>
 #include <Aspose/Slides/Foss/notes_slide.h>
+#include <Aspose/Slides/Foss/picture_frame.h>
 #include <Aspose/Slides/Foss/pp_image.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/row.h>
 #include <Aspose/Slides/Foss/row_collection.h>
 #include <Aspose/Slides/Foss/slide.h>
@@ -589,6 +591,40 @@ void Presentation::save(std::string_view path, SaveFormat format) {
 
         int64_t slide_id = 256;
 
+        // Put an image into the package and return the relationship id the
+        // slide uses to reference it: the part bytes, a Default content type
+        // for the extension, and one slide->image relationship, reused if the
+        // same image is referenced twice. Picture frames and picture fills
+        // share this; they differ only in the element carrying the r:embed.
+        auto embed_image = [&](PPImage* pp_img,
+                               std::string_view slide_part) -> std::string {
+            if (!pp_img) return {};
+
+            auto ext = image_utils::guess_extension(pp_img->raw_data());
+            if (pp_img->part_name().empty()) {
+                pp_img->set_part_name("ppt/media/image" +
+                                      std::to_string(img_counter++) + "." + ext);
+            }
+            pkg->set_part(pp_img->part_name(), pp_img->binary_data());
+
+            opc::ContentTypesManager img_ct(*pkg);
+            img_ct.add_default(ext, pp_img->content_type());
+            img_ct.save();
+
+            auto img_target = "../media/" +
+                pp_img->part_name().substr(pp_img->part_name().rfind('/') + 1);
+
+            opc::RelationshipsManager slide_rels(*pkg, slide_part);
+            for (const auto& rel :
+                 slide_rels.get_relationships_by_type(opc::rel_types::kImage)) {
+                if (rel.target == img_target) return rel.id;
+            }
+            auto img_rid =
+                slide_rels.add_relationship(opc::rel_types::kImage, img_target);
+            slide_rels.save();
+            return img_rid;
+        };
+
         for (std::size_t i = 0; i < slides_.size(); ++i) {
             int num = static_cast<int>(i) + 1;
             std::string slide_part_name =
@@ -707,6 +743,22 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                                 }
                             }
                         }
+                    } else if (auto* pic_frame =
+                                   dynamic_cast<PictureFrame*>(&shape)) {
+                        // A picture frame is a p:pic, not a p:sp. Serialising
+                        // it as an auto shape loses the image entirely and
+                        // leaves a blank rectangle in its place.
+                        auto img_rid =
+                            embed_image(pic_frame->pp_image(), slide_part_name);
+                        auto node = spTree.append_child("p:pic");
+                        ShapeCollection::build_picture_frame_xml(
+                            node, cur_id,
+                            shape.name().empty()
+                                ? "Picture " + std::to_string(cur_id)
+                                : shape.name(),
+                            shape.shape_type(),
+                            shape.x(), shape.y(),
+                            shape.width(), shape.height(), img_rid);
                     } else {
                         auto node = spTree.append_child("p:sp");
                         shapes.build_auto_shape_xml(
@@ -808,55 +860,19 @@ void Presentation::save(std::string_view path, SaveFormat format) {
 
                                 // Handle picture fill image embedding.
                                 if (shape.fill_format().fill_type() == FillType::PICTURE) {
-                                    auto* img_ptr = shape.fill_format()
-                                        .picture_fill_format().picture().image();
-                                    if (img_ptr) {
-                                        auto* pp_img = dynamic_cast<PPImage*>(img_ptr);
-                                        if (pp_img) {
-                                            // Assign part name if not set.
-                                            if (pp_img->part_name().empty()) {
-                                                auto ext = image_utils::guess_extension(
-                                                    pp_img->raw_data());
-                                                auto part_name = "ppt/media/image" +
-                                                    std::to_string(img_counter++) +
-                                                    "." + ext;
-                                                pp_img->set_part_name(part_name);
-                                            }
-                                            // Write image data to package.
-                                            auto data = pp_img->binary_data();
-                                            pkg->set_part(pp_img->part_name(), data);
-
-                                            // Add content type for image.
-                                            opc::ContentTypesManager img_ct(*pkg);
-                                            img_ct.add_default(
-                                                image_utils::guess_extension(
-                                                    pp_img->raw_data()),
-                                                pp_img->content_type());
-                                            img_ct.save();
-
-                                            // Create relationship from slide to image.
-                                            opc::RelationshipsManager slide_rels(
-                                                *pkg, slide_part_name);
-                                            auto img_target =
-                                                "../media/" + pp_img->part_name().substr(
-                                                    pp_img->part_name().rfind('/') + 1);
-                                            auto img_rid =
-                                                slide_rels.add_relationship(
-                                                    opc::rel_types::kImage,
-                                                    img_target);
-                                            slide_rels.save();
-
-                                            // Set r:embed on a:blip.
-                                            auto blip_fill =
-                                                new_sp_pr.child("a:blipFill");
-                                            if (blip_fill) {
-                                                auto blip =
-                                                    blip_fill.child("a:blip");
-                                                if (blip) {
-                                                    blip.append_attribute("r:embed") =
-                                                        img_rid.c_str();
-                                                }
-                                            }
+                                    auto* pp_img = dynamic_cast<PPImage*>(
+                                        shape.fill_format()
+                                             .picture_fill_format()
+                                             .picture().image());
+                                    auto img_rid =
+                                        embed_image(pp_img, slide_part_name);
+                                    if (!img_rid.empty()) {
+                                        // Set r:embed on a:blip.
+                                        auto blip = new_sp_pr.child("a:blipFill")
+                                                             .child("a:blip");
+                                        if (blip) {
+                                            blip.append_attribute("r:embed") =
+                                                img_rid.c_str();
                                         }
                                     }
                                 }

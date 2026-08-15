@@ -928,6 +928,56 @@ void ShapeCollection::build_connector_xml(
 }
 
 // ===========================================================================
+// build_picture_frame_xml
+// ===========================================================================
+
+void ShapeCollection::build_picture_frame_xml(
+    pugi::xml_node pic, int shape_id, std::string_view name,
+    ShapeType type, double x, double y, double w, double h,
+    std::string_view embed_id) {
+
+    auto prst = shape_type_to_prst(type);
+    if (!prst) prst = "rect";
+
+    auto x_emu = to_emu(x);
+    auto y_emu = to_emu(y);
+    auto w_emu = to_emu(w);
+    auto h_emu = to_emu(h);
+
+    // nvPicPr
+    auto nv_pic_pr = pic.append_child("p:nvPicPr");
+    auto c_nv_pr = nv_pic_pr.append_child("p:cNvPr");
+    c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
+    c_nv_pr.append_attribute("name") = std::string(name).c_str();
+    auto c_nv_pic_pr = nv_pic_pr.append_child("p:cNvPicPr");
+    auto pic_locks = c_nv_pic_pr.append_child("a:picLocks");
+    pic_locks.append_attribute("noChangeAspect") = "1";
+    nv_pic_pr.append_child("p:nvPr");
+
+    // blipFill
+    auto blip_fill = pic.append_child("p:blipFill");
+    auto blip = blip_fill.append_child("a:blip");
+    if (!embed_id.empty()) {
+        blip.append_attribute("r:embed") = std::string(embed_id).c_str();
+    }
+    auto stretch = blip_fill.append_child("a:stretch");
+    stretch.append_child("a:fillRect");
+
+    // spPr
+    auto sp_pr = pic.append_child("p:spPr");
+    auto xfrm = sp_pr.append_child("a:xfrm");
+    auto off = xfrm.append_child("a:off");
+    off.append_attribute("x") = x_emu.c_str();
+    off.append_attribute("y") = y_emu.c_str();
+    auto ext = xfrm.append_child("a:ext");
+    ext.append_attribute("cx") = w_emu.c_str();
+    ext.append_attribute("cy") = h_emu.c_str();
+    auto prst_geom = sp_pr.append_child("a:prstGeom");
+    prst_geom.append_attribute("prst") = prst;
+    prst_geom.append_child("a:avLst");
+}
+
+// ===========================================================================
 // insert_or_append helper
 // ===========================================================================
 
@@ -1084,9 +1134,6 @@ PictureFrame& ShapeCollection::add_picture_frame_impl(
         if (!sp_tree)
             throw std::runtime_error("Cannot add shape: slide has no shape tree");
 
-        auto prst = shape_type_to_prst(type);
-        if (!prst) prst = "rect";
-
         // Resolve image relationship
         auto& image_part_name = image.part_name();
         auto& rels_mgr = slide_part_->rels_manager();
@@ -1118,45 +1165,10 @@ PictureFrame& ShapeCollection::add_picture_frame_impl(
 
         int shape_id = next_shape_id();
         auto name = "Picture " + std::to_string(shape_id);
-        auto x_emu = to_emu(x);
-        auto y_emu = to_emu(y);
-        auto w_emu = to_emu(w);
-        auto h_emu = to_emu(h);
 
         auto pic = insert_or_append(sp_tree, index, "p:pic");
-
-        // nvPicPr
-        auto nv_pic_pr = pic.append_child("p:nvPicPr");
-        auto c_nv_pr = nv_pic_pr.append_child("p:cNvPr");
-        c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
-        c_nv_pr.append_attribute("name") = name.c_str();
-        auto c_nv_pic_pr = nv_pic_pr.append_child("p:cNvPicPr");
-        auto pic_locks = c_nv_pic_pr.append_child("a:picLocks");
-        pic_locks.append_attribute("noChangeAspect") = "1";
-        nv_pic_pr.append_child("p:nvPr");
-
-        // blipFill
-        auto blip_fill = pic.append_child("p:blipFill");
-        auto blip = blip_fill.append_child("a:blip");
-        // r:embed attribute
-        auto r_embed_name = std::string("{") +
-            std::string(Internal::pptx::ns_uri::kR) + "}embed";
-        blip.append_attribute(r_embed_name.c_str()) = embed_id.c_str();
-        auto stretch = blip_fill.append_child("a:stretch");
-        stretch.append_child("a:fillRect");
-
-        // spPr
-        auto sp_pr = pic.append_child("p:spPr");
-        auto xfrm = sp_pr.append_child("a:xfrm");
-        auto off = xfrm.append_child("a:off");
-        off.append_attribute("x") = x_emu.c_str();
-        off.append_attribute("y") = y_emu.c_str();
-        auto ext = xfrm.append_child("a:ext");
-        ext.append_attribute("cx") = w_emu.c_str();
-        ext.append_attribute("cy") = h_emu.c_str();
-        auto prst_geom = sp_pr.append_child("a:prstGeom");
-        prst_geom.append_attribute("prst") = prst;
-        prst_geom.append_child("a:avLst");
+        build_picture_frame_xml(pic, shape_id, name, type, x, y, w, h,
+                                embed_id);
 
         save_to_part();
 
