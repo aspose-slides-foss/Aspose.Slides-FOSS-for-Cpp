@@ -24,6 +24,19 @@ namespace Aspose::Slides::Foss {
 /// @return The newly inserted child node.
 pugi::xml_node ppr_insert_child(pugi::xml_node ppr, std::string_view tag);
 
+/// Write a paragraph's formatting into an empty `<a:pPr>` element.
+///
+/// Only what the caller actually set is written. A property left undefined is
+/// omitted rather than defaulted, so the placeholder / layout / master chain
+/// resolves it the way OOXML intends — inventing a value here would take away
+/// the caller's only way of saying "inherit".
+///
+/// Children are emitted in CT_TextParagraphProperties sequence order.
+void serialize_ppr(pugi::xml_node ppr, const IParagraphFormat& format);
+
+/// Returns true when @p format has anything at all to write into an `<a:pPr>`.
+[[nodiscard]] bool ppr_has_content(const IParagraphFormat& format);
+
 /// Represents paragraph formatting properties.
 class ParagraphFormat final : public IParagraphFormat {
 public:

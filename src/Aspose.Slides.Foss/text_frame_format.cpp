@@ -143,4 +143,117 @@ void TextFrameFormat::resize_shape_to_fit_text(pugi::xml_node body_pr) {
     y_attr.set_value(std::to_string(new_y).c_str());
 }
 
+// ---------------------------------------------------------------------------
+// serialize_body_pr — write the in-memory model onto an <a:bodyPr>
+// ---------------------------------------------------------------------------
+
+namespace {
+
+constexpr int kRotationUnit = 60000; // 60000ths of a degree
+
+/// ST_TextAnchoringType token, or nullptr when nothing is to be written.
+const char* anchor_to_ooxml(TextAnchorType value) {
+    switch (value) {
+        case TextAnchorType::TOP:         return "t";
+        case TextAnchorType::CENTER:      return "ctr";
+        case TextAnchorType::BOTTOM:      return "b";
+        case TextAnchorType::JUSTIFIED:   return "just";
+        case TextAnchorType::DISTRIBUTED: return "dist";
+        case TextAnchorType::NOT_DEFINED: return nullptr;
+    }
+    return nullptr;
+}
+
+/// ST_TextVerticalType token, or nullptr when nothing is to be written.
+const char* vertical_to_ooxml(TextVerticalType value) {
+    switch (value) {
+        case TextVerticalType::HORIZONTAL:          return "horz";
+        case TextVerticalType::VERTICAL:            return "vert";
+        case TextVerticalType::VERTICAL270:         return "vert270";
+        case TextVerticalType::WORD_ART_VERTICAL:   return "wordArtVert";
+        case TextVerticalType::EAST_ASIAN_VERTICAL: return "eaVert";
+        case TextVerticalType::MONGOLIAN_VERTICAL:  return "mongolianVert";
+        case TextVerticalType::WORD_ART_VERTICAL_RIGHT_TO_LEFT:
+            return "wordArtVertRtl";
+        case TextVerticalType::NOT_DEFINED:         return nullptr;
+    }
+    return nullptr;
+}
+
+/// The autofit choice is an element, not an attribute.
+const char* autofit_to_ooxml(TextAutofitType value) {
+    switch (value) {
+        case TextAutofitType::NONE:        return "a:noAutofit";
+        case TextAutofitType::NORMAL:      return "a:normAutofit";
+        case TextAutofitType::SHAPE:       return "a:spAutoFit";
+        case TextAutofitType::NOT_DEFINED: return nullptr;
+    }
+    return nullptr;
+}
+
+void set_attr(pugi::xml_node node, const char* name, const char* value) {
+    auto attr = node.attribute(name);
+    if (!attr) attr = node.append_attribute(name);
+    attr.set_value(value);
+}
+
+void set_emu_attr(pugi::xml_node node, const char* name, double points) {
+    if (std::isnan(points)) return;
+    auto attr = node.attribute(name);
+    if (!attr) attr = node.append_attribute(name);
+    attr.set_value(static_cast<long long>(std::round(points * kEmuPerPoint)));
+}
+
+} // namespace
+
+void serialize_body_pr(pugi::xml_node body_pr, const ITextFrameFormat& format) {
+    if (format.rotation_angle() != 0.0) {
+        auto attr = body_pr.attribute("rot");
+        if (!attr) attr = body_pr.append_attribute("rot");
+        attr.set_value(
+            static_cast<long long>(std::round(format.rotation_angle() * kRotationUnit)));
+    }
+    if (const char* vert = vertical_to_ooxml(format.text_vertical_type())) {
+        set_attr(body_pr, "vert", vert);
+    }
+    // ST_TextWrappingType is "square" or "none"; there is no boolean form.
+    if (format.wrap_text() != NullableBool::NOT_DEFINED) {
+        set_attr(body_pr, "wrap",
+                 format.wrap_text() == NullableBool::TRUE ? "square" : "none");
+    }
+    set_emu_attr(body_pr, "lIns", format.margin_left());
+    set_emu_attr(body_pr, "tIns", format.margin_top());
+    set_emu_attr(body_pr, "rIns", format.margin_right());
+    set_emu_attr(body_pr, "bIns", format.margin_bottom());
+    if (format.column_count() > 1) {
+        auto attr = body_pr.attribute("numCol");
+        if (!attr) attr = body_pr.append_attribute("numCol");
+        attr.set_value(format.column_count());
+    }
+    if (format.column_spacing() > 0.0) {
+        set_emu_attr(body_pr, "spcCol", format.column_spacing());
+    }
+    if (const char* anchor = anchor_to_ooxml(format.anchoring_type())) {
+        set_attr(body_pr, "anchor", anchor);
+    }
+    if (format.center_text() != NullableBool::NOT_DEFINED) {
+        set_attr(body_pr, "anchorCtr",
+                 format.center_text() == NullableBool::TRUE ? "1" : "0");
+    }
+
+    // The autofit choice is a child element. Replace whichever one is there so
+    // that re-serialising cannot leave two of the three behind.
+    for (const char* tag : {"a:noAutofit", "a:normAutofit", "a:spAutoFit"}) {
+        if (auto existing = body_pr.child(tag)) body_pr.remove_child(existing);
+    }
+    if (const char* autofit = autofit_to_ooxml(format.autofit_type())) {
+        // CT_TextBodyProperties puts the autofit choice after a:prstTxWarp.
+        if (auto warp = body_pr.child("a:prstTxWarp")) {
+            body_pr.insert_child_after(autofit, warp);
+        } else {
+            body_pr.prepend_child(autofit);
+        }
+    }
+}
+
 } // namespace Aspose::Slides::Foss

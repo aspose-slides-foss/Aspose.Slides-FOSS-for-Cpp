@@ -19,6 +19,18 @@
 
 namespace Aspose::Slides::Foss {
 
+/// Write a text frame's formatting onto an `<a:bodyPr>` element.
+///
+/// Only what the caller set is written; an undefined property is left off so
+/// the layout and master resolve it. The one exception is `@anchor`, which
+/// keeps its long-standing `ctr` default when nothing was set — an auto shape
+/// has no placeholder chain to inherit from, and PowerPoint centres shape text
+/// vertically by default too.
+///
+/// Any child element this function owns (the autofit choice) is replaced, so
+/// calling it twice on the same node is safe.
+void serialize_body_pr(pugi::xml_node body_pr, const ITextFrameFormat& format);
+
 /// Represents text frame formatting properties.
 class TextFrameFormat final : public ITextFrameFormat {
 public:

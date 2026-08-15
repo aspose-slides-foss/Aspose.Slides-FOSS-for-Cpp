@@ -773,6 +773,19 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                         // Serialize text frame content into the p:txBody.
                         if (auto* ashape = dynamic_cast<AutoShape*>(&shape)) {
                             auto* tf = ashape->text_frame();
+
+                            // Text-frame properties are written whether or not
+                            // there is any text: margins, wrapping, anchoring
+                            // and autofit are properties of the frame.
+                            if (tf) {
+                                auto body_pr = node.child("p:txBody")
+                                                   .child("a:bodyPr");
+                                if (body_pr) {
+                                    serialize_body_pr(body_pr,
+                                                      tf->text_frame_format());
+                                }
+                            }
+
                             if (tf && !tf->text().empty()) {
                                 // Mark shape as text box.
                                 auto nvSpPr = node.child("p:nvSpPr");
@@ -800,17 +813,15 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                                          ++pi) {
                                         auto a_p = txbody.append_child("a:p");
 
-                                        // Paragraph properties (alignment, etc.).
-                                        // Default to center if not explicitly set
-                                        // (matches .NET AddTextFrame behavior).
+                                        // Paragraph properties. Written only
+                                        // when the caller set something: an
+                                        // empty a:pPr says nothing, and an
+                                        // invented algn would take away the
+                                        // caller's way of inheriting one.
                                         auto& pf = paras[pi].paragraph_format();
-                                        {
-                                            auto pPr = a_p.append_child("a:pPr");
-                                            auto actual_align = pf.alignment();
-                                            if (actual_align == TextAlignment::NOT_DEFINED)
-                                                actual_align = TextAlignment::CENTER;
-                                            auto algn = alignment_to_ooxml_str(actual_align);
-                                            if (algn) pPr.append_attribute("algn") = algn;
+                                        if (ppr_has_content(pf)) {
+                                            serialize_ppr(
+                                                a_p.append_child("a:pPr"), pf);
                                         }
 
                                         // Write individual portions with formatting.
@@ -989,10 +1000,8 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                             for (std::size_t pi = 0; pi < paras.size(); ++pi) {
                                 auto p_el = txbody.append_child("a:p");
                                 auto& pf = paras[pi].paragraph_format();
-                                if (pf.alignment() != TextAlignment::NOT_DEFINED) {
-                                    auto pPr = p_el.append_child("a:pPr");
-                                    auto algn = alignment_to_ooxml_str(pf.alignment());
-                                    if (algn) pPr.append_attribute("algn") = algn;
+                                if (ppr_has_content(pf)) {
+                                    serialize_ppr(p_el.append_child("a:pPr"), pf);
                                 }
                                 auto r_el = p_el.append_child("a:r");
                                 auto t_el = r_el.append_child("a:t");
