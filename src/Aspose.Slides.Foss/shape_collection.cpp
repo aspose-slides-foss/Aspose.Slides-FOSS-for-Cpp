@@ -955,11 +955,18 @@ void ShapeCollection::build_picture_frame_xml(
     nv_pic_pr.append_child("p:nvPr");
 
     // blipFill
+    //
+    // A picture frame whose a:blip carries no r:embed is schema-valid and
+    // shows nothing: the shape is there, sized and positioned, and the image
+    // is not. Refusing is the only outcome the caller can act on.
+    if (embed_id.empty()) {
+        throw std::invalid_argument(
+            "cannot write a picture frame with no image: a:blip needs an "
+            "r:embed relationship to an image part");
+    }
     auto blip_fill = pic.append_child("p:blipFill");
     auto blip = blip_fill.append_child("a:blip");
-    if (!embed_id.empty()) {
-        blip.append_attribute("r:embed") = std::string(embed_id).c_str();
-    }
+    blip.append_attribute("r:embed") = std::string(embed_id).c_str();
     auto stretch = blip_fill.append_child("a:stretch");
     stretch.append_child("a:fillRect");
 
