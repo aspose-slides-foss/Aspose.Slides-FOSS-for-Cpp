@@ -115,11 +115,18 @@ public:
     [[nodiscard]] IImageTransformOperation& as_i_image_transform_operation() noexcept override { return *this; }
 
 private:
-    double start_pos_alpha_ = 0.0;
-    double end_pos_alpha_ = 0.0;
-    double fade_direction_ = 0.0;
-    double start_reflection_opacity_ = 0.0;
-    double end_reflection_opacity_ = 0.0;
+    // The members start at the defaults CT_ReflectionEffect declares, not at
+    // zero. The in-memory serialiser writes every attribute of the element
+    // from this model, so a member left at its C++ zero is written out as an
+    // explicit `stA="0"` — and a reflection that is fully transparent at both
+    // ends is present, valid, reported by PowerPoint, and invisible. Reading
+    // an existing element only overwrites what the element actually carries,
+    // so an absent attribute keeps the schema default here too.
+    double start_pos_alpha_ = 0.0;         ///< @stPos, default 0
+    double end_pos_alpha_ = 100.0;         ///< @endPos, default 100000
+    double fade_direction_ = 90.0;         ///< @fadeDir, default 5400000
+    double start_reflection_opacity_ = 100.0;  ///< @stA, default 100000
+    double end_reflection_opacity_ = 0.0;      ///< @endA, default 0
     double blur_radius_ = 0.0;
     double direction_ = 0.0;
     double distance_ = 0.0;

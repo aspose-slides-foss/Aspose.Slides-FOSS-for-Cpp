@@ -165,6 +165,30 @@ TEST_F(EffectsConformance, AReflectionReachesTheFile) {
                                            {{"blurRad", "50800"}}));
 }
 
+/// A reflection whose alpha is zero at both ends is invisible.
+///
+/// The in-memory serialiser writes every attribute of CT_ReflectionEffect from
+/// the model, so a member left at its C++ zero is written as `stA="0"` rather
+/// than omitted — and the schema default for `@stA` is 100000, not 0. The
+/// element is present and valid, PowerPoint reports the effect, and the user
+/// sees nothing. `@endPos` (default 100000) and `@fadeDir` (default 5400000)
+/// fail the same way.
+TEST_F(EffectsConformance, AReflectionIsVisibleUnlessItIsToldOtherwise) {
+    Presentation pres;
+    auto& ef = fresh_shape(pres).effect_format();
+    ef.enable_reflection_effect();
+    auto* reflection = ef.reflection_effect();
+    ASSERT_NE(reflection, nullptr);
+    reflection->set_blur_radius(4);
+
+    auto pkg = save_and_inspect(pres);
+    EXPECT_TRUE(conformance::ElementExists(
+        pkg, kSlide, "//a:effectLst/a:reflection",
+        {{"stA", "100000"}, {"endPos", "100000"}, {"fadeDir", "5400000"}}))
+        << "the reflection is written fully transparent at both ends, so it "
+           "is in the file and invisible on the slide";
+}
+
 TEST_F(EffectsConformance, AFillOverlayReachesTheFile) {
     Presentation pres;
     auto& ef = fresh_shape(pres).effect_format();
