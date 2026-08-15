@@ -57,6 +57,14 @@ public:
         std::ostream& stream,
         const std::any& options = {}) override;
 
+    /// Register this exporter with ExporterRegistry, once per process.
+    ///
+    /// The registration used to be a namespace-scope initialiser, which a
+    /// static library is free to drop along with the object file when nothing
+    /// else refers to it. Calling this before the registry is consulted is
+    /// what guarantees the map is populated, in a link as well as at runtime.
+    static void ensure_registered();
+
     /// Get all OPC-based presentation formats.
     ///
     /// @return List of format strings: {"Pptx", "Pptm", "Ppsx", "Ppsm", "Potx", "Potm"}.
@@ -92,21 +100,6 @@ private:
     static const std::unordered_map<std::string, std::string> kContentTypes;
 
     std::string target_format_;
-};
-
-/// Factory for creating PPTX exporters with specific target formats.
-///
-/// This allows the registry to create format-specific exporter instances.
-class PptxExporterFactory final {
-public:
-    PptxExporterFactory() = delete;
-
-    /// Create a PPTX exporter for a specific format.
-    ///
-    /// @param format_value The target format string (e.g., "Pptx", "Potx").
-    /// @return A new PptxExporter configured for the specified format.
-    [[nodiscard]] static std::unique_ptr<PptxExporter>
-    create_for_format(std::string_view format_value);
 };
 
 } // namespace Aspose::Slides::Foss::Internal::export_

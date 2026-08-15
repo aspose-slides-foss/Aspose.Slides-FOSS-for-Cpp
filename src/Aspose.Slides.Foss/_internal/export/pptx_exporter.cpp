@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Aspose Pty Ltd
 
 /// @file pptx_exporter.cpp
-/// @brief Implementation of the PptxExporter and PptxExporterFactory classes.
+/// @brief Implementation of the PptxExporter class.
 
 #include "Aspose/Slides/Foss/_internal/export/pptx_exporter.h"
 
@@ -88,17 +88,12 @@ std::vector<std::string> PptxExporter::get_supported_formats() {
     return formats;
 }
 
-std::unique_ptr<PptxExporter>
-PptxExporterFactory::create_for_format(std::string_view format_value) {
-    return std::make_unique<PptxExporter>(format_value);
+void PptxExporter::ensure_registered() {
+    static const bool registered = [] {
+        ExporterRegistry::register_exporter<PptxExporter>();
+        return true;
+    }();
+    (void)registered;
 }
-
-namespace {
-/// Auto-register PptxExporter for all supported formats at static init.
-const bool kRegistered = [] {
-    ExporterRegistry::register_exporter<PptxExporter>();
-    return true;
-}();
-} // namespace
 
 } // namespace Aspose::Slides::Foss::Internal::export_

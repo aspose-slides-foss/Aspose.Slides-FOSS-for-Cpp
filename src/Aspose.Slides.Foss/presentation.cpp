@@ -12,6 +12,7 @@
 
 #include <pugixml.hpp>
 
+#include <Aspose/Slides/Foss/_internal/export/exporter_registry.h>
 #include <Aspose/Slides/Foss/_internal/export/pptx_exporter.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types_manager.h>
@@ -417,9 +418,14 @@ void Presentation::save(std::string_view path, SaveFormat format) {
     // the call reports success and the user is left with a file PowerPoint
     // rejects, saying its extension has changed.
     const std::string format_name(to_string_view(format));
-    if (!export_::PptxExporter::is_format_supported(format_name)) {
+    export_::PptxExporter::ensure_registered();
+    if (!export_::ExporterRegistry::is_format_supported(format_name)) {
+        // Naming the formats that do work is the difference between a message
+        // the caller can act on and one they have to search for.
         throw std::invalid_argument(
-            "Export format '" + format_name + "' is not supported");
+            "Export format '" + format_name +
+            "' is not supported; this build writes Pptx, Pptm, Ppsx, Ppsm, "
+            "Potx and Potm");
     }
 
     int img_counter = 1;
@@ -1351,7 +1357,9 @@ void Presentation::save(std::string_view path, SaveFormat format) {
     // --- Write the ZIP file to disk ---
     // Through the exporter for the requested format, which stamps the main
     // part with that format's content type before the package is written.
-    export_::PptxExporterFactory::create_for_format(format_name)
+    // Resolved through the registry rather than constructed here, so that an
+    // exporter registered from anywhere else is reachable from save() too.
+    export_::ExporterRegistry::get_exporter(format_name)
         ->export_presentation(*pkg, path);
 }
 

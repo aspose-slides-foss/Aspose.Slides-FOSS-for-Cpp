@@ -10,6 +10,7 @@
 /// shape still has its own main-part content type, and PowerPoint refuses a
 /// file whose extension and main content type disagree.
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -98,13 +99,23 @@ TEST_F(SaveFormatConformance, AskingForAFormatThatIsNotImplementedThrows) {
     for (const auto& [format, name] : unimplemented_formats()) {
         Presentation pres;
         bool threw = false;
+        const std::string format_name(to_string_view(format));
         try {
             save(pres, name, format);
-        } catch (const std::exception&) {
+        } catch (const std::invalid_argument& e) {
+            // Catching std::exception would also pass on a std::bad_alloc, so
+            // the exception type is part of the contract, and so is the
+            // message: the caller has to be told which format was refused.
             threw = true;
+            const std::string what(e.what());
+            EXPECT_NE(what.find(format_name), std::string::npos)
+                << "the message for " << format_name
+                << " does not name the format: " << what;
+            EXPECT_NE(what.find("Pptx"), std::string::npos)
+                << "the message for " << format_name
+                << " does not say which formats do work: " << what;
         }
-        if (!threw)
-            silently_accepted.emplace_back(to_string_view(format));
+        if (!threw) silently_accepted.push_back(format_name);
     }
     EXPECT_TRUE(silently_accepted.empty())
         << silently_accepted.size()
