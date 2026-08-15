@@ -37,6 +37,10 @@ public:
     /// Get or create the <a:scene3d> element at the correct OOXML position.
     pugi::xml_node ensure_scene3d();
 
+    /// Bind the camera and light rig to a scene3d element and make sure both
+    /// of the children CT_Scene3D requires exist.
+    void init_scene3d_children(pugi::xml_node scene3d);
+
     /// Save changes via the save callback.
     void save();
 

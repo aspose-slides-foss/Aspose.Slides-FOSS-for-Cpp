@@ -140,16 +140,24 @@ pugi::xml_node ThreeDFormat::ensure_scene3d() {
             if (name == tag) {
                 el = parent_element_.insert_child_before(
                     std::string(kScene3d).c_str(), child);
-                camera_.init_internal(el, save_callback_);
-                light_rig_.init_internal(el, save_callback_);
+                init_scene3d_children(el);
                 return el;
             }
         }
     }
     el = parent_element_.append_child(std::string(kScene3d).c_str());
-    camera_.init_internal(el, save_callback_);
-    light_rig_.init_internal(el, save_callback_);
+    init_scene3d_children(el);
     return el;
+}
+
+void ThreeDFormat::init_scene3d_children(pugi::xml_node scene3d) {
+    camera_.init_internal(scene3d, save_callback_);
+    light_rig_.init_internal(scene3d, save_callback_);
+    // CT_Scene3D requires a camera and a light rig, in that order. A caller
+    // who sets only one of the two would otherwise produce a scene PowerPoint
+    // refuses; the other is created with its neutral default.
+    camera_.ensure_camera();
+    light_rig_.ensure_light_rig();
 }
 
 // ---------------------------------------------------------------------------
@@ -286,31 +294,32 @@ void ThreeDFormat::serialize_to_xml(pugi::xml_node sp_pr) const {
     if (need_scene3d) {
         auto scene3d = sp_pr.append_child("a:scene3d");
 
-        // Camera.
-        if (camera_.camera_type() != CameraPresetType::NOT_DEFINED) {
-            auto cam = scene3d.append_child("a:camera");
-            cam.append_attribute("prst") =
-                std::string(camera_preset_type_to_ooxml(camera_.camera_type())).c_str();
-        }
+        // CT_Scene3D requires a camera and a light rig, in that order, and
+        // each of those requires its own attributes. The API lets a caller set
+        // one of the two, or a rig with no direction; every such partial scene
+        // is a file PowerPoint refuses to open, so the missing halves are
+        // filled in with the neutral defaults rather than left out.
 
-        // Light rig.
-        if (light_rig_.light_type() != LightRigPresetType::NOT_DEFINED
-            || light_rig_.direction() != LightingDirection::NOT_DEFINED) {
-            auto lr = scene3d.append_child("a:lightRig");
-            if (light_rig_.light_type() != LightRigPresetType::NOT_DEFINED) {
-                lr.append_attribute("rig") =
-                    std::string(light_rig_preset_type_to_ooxml(light_rig_.light_type())).c_str();
-            }
-            // CT_LightRig requires dir. The API lets a caller set the rig
-            // without a direction, and an a:lightRig with no dir is a file
-            // PowerPoint refuses to open, so a direction is always written.
-            if (light_rig_.direction() != LightingDirection::NOT_DEFINED) {
-                lr.append_attribute("dir") =
-                    std::string(lighting_direction_to_ooxml(light_rig_.direction())).c_str();
-            } else {
-                lr.append_attribute("dir") = "t";
-            }
+        // Camera: prst is required by CT_Camera.
+        std::string cam_prst = "orthographicFront";
+        if (camera_.camera_type() != CameraPresetType::NOT_DEFINED) {
+            cam_prst = camera_preset_type_to_ooxml(camera_.camera_type());
         }
+        scene3d.append_child("a:camera").append_attribute("prst") =
+            cam_prst.c_str();
+
+        // Light rig: both rig and dir are required by CT_LightRig.
+        std::string rig = "threePt";
+        if (light_rig_.light_type() != LightRigPresetType::NOT_DEFINED) {
+            rig = light_rig_preset_type_to_ooxml(light_rig_.light_type());
+        }
+        std::string dir = "t";
+        if (light_rig_.direction() != LightingDirection::NOT_DEFINED) {
+            dir = lighting_direction_to_ooxml(light_rig_.direction());
+        }
+        auto lr = scene3d.append_child("a:lightRig");
+        lr.append_attribute("rig") = rig.c_str();
+        lr.append_attribute("dir") = dir.c_str();
     }
 
     if (need_sp3d) {
