@@ -920,7 +920,7 @@ void Presentation::save(std::string_view path, SaveFormat format) {
                 auto tbl_name = "Table " + std::to_string(tbl_id);
                 c_nv_pr_tbl.append_attribute("name") = tbl_name.c_str();
                 auto c_nv_gf_pr = nv_gf_pr.append_child("p:cNvGraphicFramePr");
-                auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocking");
+                auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocks");
                 gf_locking.append_attribute("noGrp") = "1";
                 nv_gf_pr.append_child("p:nvPr");
 

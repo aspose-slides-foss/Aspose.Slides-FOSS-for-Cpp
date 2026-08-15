@@ -1234,7 +1234,7 @@ Table& ShapeCollection::add_table_impl(
         c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
         c_nv_pr.append_attribute("name") = name.c_str();
         auto c_nv_gf_pr = nv_gf_pr.append_child("p:cNvGraphicFramePr");
-        auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocking");
+        auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocks");
         gf_locking.append_attribute("noGrp") = "1";
         nv_gf_pr.append_child("p:nvPr");
 
