@@ -37,10 +37,6 @@ public:
     /// Get or create the <a:scene3d> element at the correct OOXML position.
     pugi::xml_node ensure_scene3d();
 
-    /// Bind the camera and light rig to a scene3d element and make sure both
-    /// of the children CT_Scene3D requires exist.
-    void init_scene3d_children(pugi::xml_node scene3d);
-
     /// Save changes via the save callback.
     void save();
 
@@ -75,7 +71,11 @@ public:
     [[nodiscard]] double extrusion_height() const noexcept { return extrusion_height_; }
     void set_extrusion_height(double value) noexcept;
 
-    /// Returns the extrusion color.
+    /// Returns the extrusion color, `a:sp3d/a:extrusionClr`.
+    ///
+    /// Mutating it writes the element straight into the backing XML when this
+    /// object is bound to one, and is picked up by serialize_to_xml() when it
+    /// is not.
     [[nodiscard]] SimpleColorFormat& extrusion_color() noexcept { return extrusion_color_; }
     [[nodiscard]] const SimpleColorFormat& extrusion_color() const noexcept { return extrusion_color_; }
 
@@ -83,7 +83,7 @@ public:
     [[nodiscard]] double contour_width() const noexcept { return contour_width_; }
     void set_contour_width(double value) noexcept;
 
-    /// Returns the contour color.
+    /// Returns the contour color, `a:sp3d/a:contourClr`. See extrusion_color().
     [[nodiscard]] SimpleColorFormat& contour_color() noexcept { return contour_color_; }
     [[nodiscard]] const SimpleColorFormat& contour_color() const noexcept { return contour_color_; }
 
@@ -92,6 +92,13 @@ public:
     void set_material(MaterialPresetType value) noexcept;
 
 private:
+    /// Bind the camera and light rig to a scene3d element and make sure both
+    /// of the children CT_Scene3D requires exist.
+    void init_scene3d_children(pugi::xml_node scene3d);
+
+    /// Rewrite `a:extrusionClr` and `a:contourClr` from the two colour models.
+    void write_sp3d_colors();
+
     ShapeBevel bevel_top_;
     ShapeBevel bevel_bottom_;
     Camera camera_;

@@ -9,13 +9,17 @@
 
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/bevel_preset_type.h>
+#include <Aspose/Slides/Foss/camera.h>
 #include <Aspose/Slides/Foss/camera_preset_type.h>
+#include <Aspose/Slides/Foss/drawing/color.h>
 #include <Aspose/Slides/Foss/light_rig.h>
 #include <Aspose/Slides/Foss/light_rig_preset_type.h>
 #include <Aspose/Slides/Foss/lighting_direction.h>
 #include <Aspose/Slides/Foss/material_preset_type.h>
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/shape.h>
 #include <Aspose/Slides/Foss/shape_collection.h>
+#include <Aspose/Slides/Foss/simple_color_format.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/slide.h>
 #include <Aspose/Slides/Foss/slide_collection.h>
@@ -123,6 +127,69 @@ TEST_F(ThreeDConformance, TheBevelAndMaterialThatWereSetReachTheFile) {
     EXPECT_TRUE(conformance::ElementExists(pkg, "ppt/slides/slide1.xml",
                                            "//a:sp3d",
                                            {{"prstMaterial", "metal"}}));
+}
+
+/// CT_Scene3D is a sequence of a required `a:camera` followed by a required
+/// `a:lightRig`. The API lets a caller set one of the two, and a scene that
+/// carries only the one that was set is a file PowerPoint refuses to open.
+TEST_F(ThreeDConformance, ASceneWithOnlyALightRigStillWritesACamera) {
+    Presentation pres;
+    auto& shape = fresh_shape(pres);
+    shape.three_d_format().light_rig().set_light_type(
+        LightRigPresetType::THREE_PT);
+
+    auto pkg = save_and_inspect(pres);
+    EXPECT_TRUE(conformance::ChildOrderIs(pkg, "ppt/slides/slide1.xml",
+                                          "//a:scene3d",
+                                          {"a:camera", "a:lightRig"}))
+        << "a:scene3d is missing a child CT_Scene3D requires";
+    EXPECT_TRUE(conformance::ElementExists(pkg, "ppt/slides/slide1.xml",
+                                           "//a:scene3d/a:camera",
+                                           {{"prst", "orthographicFront"}}));
+}
+
+/// The mirror case: a camera set on its own.
+TEST_F(ThreeDConformance, ASceneWithOnlyACameraStillWritesALightRig) {
+    Presentation pres;
+    auto& shape = fresh_shape(pres);
+    shape.three_d_format().camera().set_camera_type(
+        CameraPresetType::ORTHOGRAPHIC_FRONT);
+
+    auto pkg = save_and_inspect(pres);
+    EXPECT_TRUE(conformance::ChildOrderIs(pkg, "ppt/slides/slide1.xml",
+                                          "//a:scene3d",
+                                          {"a:camera", "a:lightRig"}))
+        << "a:scene3d is missing a child CT_Scene3D requires";
+    EXPECT_TRUE(conformance::ElementExists(pkg, "ppt/slides/slide1.xml",
+                                           "//a:scene3d/a:lightRig",
+                                           {{"rig", "threePt"}, {"dir", "t"}}));
+}
+
+/// The two 3-D colours are reached through a reference and mutated in place,
+/// so on a loaded deck there is no setter call for the owner to notice. Both
+/// are accepted, read back, and absent from the file.
+TEST_F(ThreeDConformance, TheThreeDColoursReachTheFileOnALoadedDeck) {
+    Presentation pres;
+    fresh_shape(pres);
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto& fmt = loaded.slides()[0].shapes()[0].three_d_format();
+    fmt.set_depth(10);
+    fmt.extrusion_color().set_color(Drawing::Color::from_argb(255, 0x11, 0x22, 0x33));
+    fmt.contour_color().set_color(Drawing::Color::from_argb(255, 0x44, 0x55, 0x66));
+
+    conformance::Package pkg(save_to(loaded, path_for("extruded.pptx")));
+    EXPECT_TRUE(conformance::ElementExists(pkg, "ppt/slides/slide1.xml",
+                                           "//a:sp3d/a:extrusionClr/a:srgbClr",
+                                           {{"val", "112233"}}));
+    EXPECT_TRUE(conformance::ElementExists(pkg, "ppt/slides/slide1.xml",
+                                           "//a:sp3d/a:contourClr/a:srgbClr",
+                                           {{"val", "445566"}}));
+    // CT_Shape3D orders its children bevelT, bevelB, extrusionClr, contourClr.
+    EXPECT_TRUE(conformance::ChildOrderIs(pkg, "ppt/slides/slide1.xml",
+                                          "//a:sp3d",
+                                          {"a:extrusionClr", "a:contourClr"}));
 }
 
 } // namespace

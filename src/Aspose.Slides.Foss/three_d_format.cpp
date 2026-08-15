@@ -52,6 +52,24 @@ void set_or_add_attribute(pugi::xml_node node, const char* name,
     }
 }
 
+/// Read a colour from the first a:srgbClr under the given element.
+Drawing::Color read_srgb_color(pugi::xml_node parent) {
+    auto srgb = parent.child("a:srgbClr");
+    if (!srgb) return {};
+    std::string_view hex = srgb.attribute("val").as_string("");
+    if (hex.size() < 6) return {};
+    auto digit = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        return 0;
+    };
+    auto byte = [&](std::size_t i) {
+        return static_cast<uint8_t>(digit(hex[i]) * 16 + digit(hex[i + 1]));
+    };
+    return Drawing::Color::from_argb(255, byte(0), byte(2), byte(4));
+}
+
 /// Write an <a:srgbClr val="RRGGBB"/> child under the given colour element.
 void write_srgb_color(pugi::xml_node parent, const Drawing::Color& c) {
     char hex[7];
@@ -87,6 +105,13 @@ void ThreeDFormat::init_internal(pugi::xml_node parent_element,
         // Initialize bevel sub-components from sp3d.
         bevel_top_.init_internal(sp3d, save_callback_);
         bevel_bottom_.init_internal(sp3d, save_callback_);
+
+        if (auto clr = sp3d.child("a:extrusionClr")) {
+            extrusion_color_.set_color(read_srgb_color(clr));
+        }
+        if (auto clr = sp3d.child("a:contourClr")) {
+            contour_color_.set_color(read_srgb_color(clr));
+        }
     }
 
     // Read existing scene3d sub-components.
@@ -95,6 +120,39 @@ void ThreeDFormat::init_internal(pugi::xml_node parent_element,
         camera_.init_internal(scene3d, save_callback_);
         light_rig_.init_internal(scene3d, save_callback_);
     }
+
+    // Installed last, so that reading the file above does not write it back.
+    //
+    // The two 3-D colours are reached through a reference and mutated in place
+    // — `extrusion_color().set_color(...)` never calls this object at all — so
+    // the change callback is the only moment at which the element can be
+    // written. Without it both colours were accepted, read back, and absent
+    // from the file.
+    extrusion_color_.set_on_changed([this] { write_sp3d_colors(); });
+    contour_color_.set_on_changed([this] { write_sp3d_colors(); });
+}
+
+void ThreeDFormat::write_sp3d_colors() {
+    if (!parent_element_) return;
+    auto sp3d = ensure_sp3d();
+    if (!sp3d) return;
+
+    // CT_Shape3D orders its children bevelT, bevelB, extrusionClr, contourClr,
+    // so both colours are rewritten together: inserting one relative to the
+    // other is the only way to keep the sequence right whichever was set
+    // first.
+    for (const char* tag : {"a:extrusionClr", "a:contourClr"}) {
+        while (auto existing = sp3d.child(tag)) sp3d.remove_child(existing);
+    }
+    if (extrusion_color_.color_type() != ColorType::NOT_DEFINED) {
+        write_srgb_color(sp3d.append_child("a:extrusionClr"),
+                         extrusion_color_.color());
+    }
+    if (contour_color_.color_type() != ColorType::NOT_DEFINED) {
+        write_srgb_color(sp3d.append_child("a:contourClr"),
+                         contour_color_.color());
+    }
+    save();
 }
 
 pugi::xml_node ThreeDFormat::get_sp3d() const {
