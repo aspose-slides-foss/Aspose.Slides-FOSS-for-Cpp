@@ -223,4 +223,50 @@ TEST_F(EffectsConformance, EffectPropertiesSetOnALoadedDeckReachTheFile) {
         {{"blurRad", "101600"}, {"dist", "63500"}, {"dir", "2700000"}}));
 }
 
+/// Every effect element the schema requires a colour child or an attribute on
+/// carries it, whichever path created the element.
+///
+/// `CT_OuterShadowEffect`, `CT_InnerShadowEffect`, `CT_PresetShadowEffect` and
+/// `CT_GlowEffect` each declare exactly one `EG_ColorChoice` child and it is
+/// not optional; `CT_SoftEdgesEffect` requires `@rad` and
+/// `CT_PresetShadowEffect` requires `@prst`. Enabling an effect creates an
+/// empty element, so without this every one of them is a file PowerPoint
+/// refuses outright.
+TEST_F(EffectsConformance, EveryEffectEnabledOnALoadedDeckIsSchemaComplete) {
+    Presentation pres;
+    fresh_shape(pres);
+    auto first = save(pres, "plain.pptx");
+
+    Presentation loaded(first.string());
+    auto& ef = loaded.slides()[0].shapes()[0].effect_format();
+    ef.set_blur_effect(8, true);
+    ef.enable_fill_overlay_effect();
+    ef.enable_glow_effect();
+    ef.enable_inner_shadow_effect();
+    ef.enable_outer_shadow_effect();
+    ef.enable_preset_shadow_effect();
+    ef.enable_reflection_effect();
+    ef.enable_soft_edge_effect();
+
+    conformance::Package pkg(save_to(loaded, path_for("all_effects.pptx")));
+    for (const char* tag : {"a:glow", "a:innerShdw", "a:outerShdw",
+                            "a:prstShdw"}) {
+        auto node = pkg.xml(kSlide)
+                        .select_node(("//a:effectLst/" + std::string(tag)).c_str())
+                        .node();
+        ASSERT_TRUE(node) << tag << " was not written at all";
+        EXPECT_FALSE(conformance::ChildNames(node).empty())
+            << tag << " has no colour child, which its type requires";
+    }
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide,
+                                           "//a:effectLst/a:softEdge",
+                                           {{"rad", "0"}}));
+    auto prst = pkg.xml(kSlide).select_node("//a:effectLst/a:prstShdw").node();
+    ASSERT_TRUE(prst);
+    EXPECT_TRUE(prst.attribute("prst")) << "prstShdw has no prst attribute";
+    EXPECT_TRUE(conformance::ElementExists(pkg, kSlide,
+                                           "//a:effectLst/a:fillOverlay",
+                                           {{"blend", "over"}}));
+}
+
 } // namespace

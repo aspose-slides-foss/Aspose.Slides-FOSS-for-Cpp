@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/blur.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 
@@ -30,7 +31,7 @@ void Blur::set_radius(double value) noexcept {
     radius_ = value;
     if (element_) {
         auto emu = static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint));
-        element_.attribute("rad").set_value(emu);
+        Internal::pptx::set_attribute(element_, "rad", emu);
         save();
     }
 }
@@ -38,7 +39,7 @@ void Blur::set_radius(double value) noexcept {
 void Blur::set_grow(bool value) noexcept {
     grow_ = value;
     if (element_) {
-        element_.attribute("grow").set_value(value);
+        Internal::pptx::set_attribute(element_, "grow", value);
         save();
     }
 }

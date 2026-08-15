@@ -3,6 +3,8 @@
 
 #include <Aspose/Slides/Foss/effects/glow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/effect_color.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <charconv>
 #include <cmath>
@@ -22,6 +24,21 @@ void Glow::init_internal(pugi::xml_node element,
         auto emu_value = rad_attr.as_llong(0);
         radius_ = static_cast<double>(emu_value) / Internal::pptx::kEmuPerPoint;
     }
+
+    if (element_) {
+        Internal::pptx::set_attribute(
+            element_, "rad",
+            static_cast<long long>(
+                std::round(radius_ * Internal::pptx::kEmuPerPoint)));
+        // CT_GlowEffect requires exactly one colour child.
+        if (!Internal::pptx::read_effect_color(element_, color_)) {
+            Internal::pptx::write_effect_color(element_, color_);
+        }
+        color_.set_on_changed([this] {
+            Internal::pptx::write_effect_color(element_, color_);
+            if (save_callback_) save_callback_();
+        });
+    }
 }
 
 void Glow::save() {
@@ -40,7 +57,7 @@ void Glow::set_radius(double value) noexcept {
     // Write back to XML element as EMUs.
     if (element_) {
         auto emu_value = static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint));
-        element_.attribute("rad").set_value(emu_value);
+        Internal::pptx::set_attribute(element_, "rad", emu_value);
     }
 
     // Persist changes.

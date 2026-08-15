@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/inner_shadow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/effect_color.h>
 #include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
@@ -28,6 +29,17 @@ void InnerShadow::init_internal(pugi::xml_node element,
     // Read distance from 'dist' attribute (stored in EMUs, exposed in points).
     if (auto attr = element_.attribute("dist"); attr) {
         distance_ = static_cast<double>(attr.as_llong(0)) / Internal::pptx::kEmuPerPoint;
+    }
+    // CT_InnerShadowEffect requires exactly one colour child; a freshly created
+    // element has none, and PowerPoint refuses a file that leaves it off.
+    if (element_) {
+        if (!Internal::pptx::read_effect_color(element_, shadow_color_)) {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+        }
+        shadow_color_.set_on_changed([this] {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+            if (save_callback_) save_callback_();
+        });
     }
 }
 

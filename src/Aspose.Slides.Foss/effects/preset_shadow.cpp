@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/preset_shadow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/effect_color.h>
 #include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
@@ -93,6 +94,20 @@ void PresetShadow::init_internal(pugi::xml_node element,
     // Preset type: 'prst' string -> PresetShadowType enum.
     if (auto attr = element_.attribute("prst"); attr) {
         preset_ = preset_from_ooxml(attr.as_string());
+    }
+    // CT_PresetShadowEffect requires @prst and exactly one colour child; a
+    // freshly created element has neither, and PowerPoint refuses a file that
+    // leaves either off.
+    if (element_) {
+        Internal::pptx::set_attribute(element_, "prst",
+                                      preset_to_ooxml(preset_));
+        if (!Internal::pptx::read_effect_color(element_, shadow_color_)) {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+        }
+        shadow_color_.set_on_changed([this] {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+            if (save_callback_) save_callback_();
+        });
     }
 }
 
