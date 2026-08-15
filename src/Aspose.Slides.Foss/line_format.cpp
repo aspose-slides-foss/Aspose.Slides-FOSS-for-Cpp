@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
 #include <Aspose/Slides/Foss/drawing/color.h>
@@ -105,6 +106,21 @@ const char* dash_style_to_ooxml(LineDashStyle style) {
         case LineDashStyle::SYSTEM_DASH_DOT_DOT: return "sysDashDotDot";
         default:                                 return nullptr;
     }
+}
+
+/// Look a token up in a table of (token, enum) pairs.
+///
+/// Every ST_ simple type in CT_LineProperties needs the reverse of its
+/// to_ooxml function, and each table is short enough that a linear scan is
+/// cheaper than a map.
+template <typename E, std::size_t N>
+E ooxml_to_enum(std::string_view val,
+                const std::array<std::pair<std::string_view, E>, N>& table,
+                E fallback) {
+    for (const auto& [token, value] : table) {
+        if (token == val) return value;
+    }
+    return fallback;
 }
 
 LineDashStyle ooxml_to_dash_style(std::string_view val) {
@@ -213,6 +229,76 @@ const char* arrowhead_length_to_ooxml(LineArrowheadLength length) {
     return nullptr;
 }
 
+// ---------------------------------------------------------------------------
+// The reverse of the mappings above.
+//
+// `apply_to_ln` rewrites the whole element from the model, so a property the
+// model did not read back when the deck was opened is deleted from the file
+// the first time any other property is set. Every to_ooxml above therefore
+// needs its inverse, and `init_internal` has to use all of them.
+// ---------------------------------------------------------------------------
+
+LineCapStyle ooxml_to_cap_style(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineCapStyle>, 3> kMap{{
+        {"rnd", LineCapStyle::ROUND},
+        {"sq", LineCapStyle::SQUARE},
+        {"flat", LineCapStyle::FLAT},
+    }};
+    return ooxml_to_enum(val, kMap, LineCapStyle::NOT_DEFINED);
+}
+
+LineStyle ooxml_to_line_style(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineStyle>, 5> kMap{{
+        {"sng", LineStyle::SINGLE},
+        {"dbl", LineStyle::THIN_THIN},
+        {"thickThin", LineStyle::THICK_THIN},
+        {"thinThick", LineStyle::THIN_THICK},
+        {"tri", LineStyle::THICK_BETWEEN_THIN},
+    }};
+    return ooxml_to_enum(val, kMap, LineStyle::NOT_DEFINED);
+}
+
+LineAlignment ooxml_to_alignment(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineAlignment>, 2> kMap{{
+        {"ctr", LineAlignment::CENTER},
+        {"in", LineAlignment::INSET},
+    }};
+    return ooxml_to_enum(val, kMap, LineAlignment::NOT_DEFINED);
+}
+
+LineArrowheadStyle ooxml_to_arrowhead_style(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineArrowheadStyle>, 6>
+        kMap{{
+            {"none", LineArrowheadStyle::NONE},
+            {"triangle", LineArrowheadStyle::TRIANGLE},
+            {"stealth", LineArrowheadStyle::STEALTH},
+            {"diamond", LineArrowheadStyle::DIAMOND},
+            {"oval", LineArrowheadStyle::OVAL},
+            {"arrow", LineArrowheadStyle::OPEN},
+        }};
+    return ooxml_to_enum(val, kMap, LineArrowheadStyle::NOT_DEFINED);
+}
+
+LineArrowheadWidth ooxml_to_arrowhead_width(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineArrowheadWidth>, 3>
+        kMap{{
+            {"sm", LineArrowheadWidth::NARROW},
+            {"med", LineArrowheadWidth::MEDIUM},
+            {"lg", LineArrowheadWidth::WIDE},
+        }};
+    return ooxml_to_enum(val, kMap, LineArrowheadWidth::NOT_DEFINED);
+}
+
+LineArrowheadLength ooxml_to_arrowhead_length(std::string_view val) {
+    static constexpr std::array<std::pair<std::string_view, LineArrowheadLength>, 3>
+        kMap{{
+            {"sm", LineArrowheadLength::SHORT},
+            {"med", LineArrowheadLength::MEDIUM},
+            {"lg", LineArrowheadLength::LONG},
+        }};
+    return ooxml_to_enum(val, kMap, LineArrowheadLength::NOT_DEFINED);
+}
+
 /// Set an attribute, adding it when absent; remove it when @p value is null.
 void set_or_remove_attribute(pugi::xml_node node, const char* name,
                              const char* value) {
@@ -288,14 +374,42 @@ void LineFormat::init_internal(pugi::xml_node parent_element,
     save_callback_ = std::move(save_callback);
     ln_tag_ = ln_tag.empty() ? std::string(kDefaultLnTag) : std::string(ln_tag);
 
-    // Parse existing <a:ln> element if present.
+    // Parse the existing <a:ln> element if there is one.
+    //
+    // Every property has to be read here, not just the ones the caller is
+    // likely to ask about: a setter rewrites the whole element from this model
+    // in one pass, so anything left unread is deleted from the file the first
+    // time any single property is set — silently, and on the path where the
+    // deck already had an outline worth keeping.
     auto ln = get_ln();
     if (!ln) return;
+
+    // -- Attributes ---------------------------------------------------------
 
     // Width: stored in EMU as the "w" attribute.
     auto w_attr = ln.attribute("w");
     if (w_attr) {
         width_ = w_attr.as_int(0) / static_cast<double>(kEmuPerPoint);
+    }
+    if (auto attr = ln.attribute("cap")) {
+        cap_style_ = ooxml_to_cap_style(attr.as_string(""));
+    }
+    if (auto attr = ln.attribute("cmpd")) {
+        style_ = ooxml_to_line_style(attr.as_string(""));
+    }
+    if (auto attr = ln.attribute("algn")) {
+        alignment_ = ooxml_to_alignment(attr.as_string(""));
+    }
+
+    // -- Children -----------------------------------------------------------
+
+    // Fill: <a:solidFill>, <a:noFill>, etc.
+    auto solid_fill = ln.child("a:solidFill");
+    if (solid_fill) {
+        fill_format_.set_fill_type(FillType::SOLID);
+        fill_format_.solid_fill_color().set_color(read_color_element(solid_fill));
+    } else if (ln.child("a:noFill")) {
+        fill_format_.set_fill_type(FillType::NO_FILL);
     }
 
     // Dash style: from <a:prstDash val="..."/> child.
@@ -307,13 +421,52 @@ void LineFormat::init_internal(pugi::xml_node parent_element,
         }
     }
 
-    // Fill: <a:solidFill>, <a:noFill>, etc.
-    auto solid_fill = ln.child("a:solidFill");
-    if (solid_fill) {
-        fill_format_.set_fill_type(FillType::SOLID);
-        fill_format_.solid_fill_color().set_color(read_color_element(solid_fill));
-    } else if (ln.child("a:noFill")) {
-        fill_format_.set_fill_type(FillType::NO_FILL);
+    // a:custDash is the other half of the dash choice: a list of a:ds, each
+    // carrying a dash length and the space after it as ST_PositivePercentage.
+    if (auto cust = ln.child("a:custDash")) {
+        custom_dash_pattern_.clear();
+        for (auto ds : cust.children("a:ds")) {
+            custom_dash_pattern_.push_back(
+                static_cast<float>(ds.attribute("d").as_llong(0) / 100000.0));
+            custom_dash_pattern_.push_back(
+                static_cast<float>(ds.attribute("sp").as_llong(0) / 100000.0));
+        }
+    }
+
+    // The join is a child element and the mitre limit an attribute on it.
+    if (ln.child("a:round")) {
+        join_style_ = LineJoinStyle::ROUND;
+    } else if (ln.child("a:bevel")) {
+        join_style_ = LineJoinStyle::BEVEL;
+    } else if (auto miter = ln.child("a:miter")) {
+        join_style_ = LineJoinStyle::MITER;
+        if (auto lim = miter.attribute("lim")) {
+            miter_limit_ = lim.as_llong(0) / 1000.0;
+        }
+    }
+
+    struct End {
+        const char* tag;
+        LineArrowheadStyle& style;
+        LineArrowheadWidth& width;
+        LineArrowheadLength& length;
+    };
+    for (const End& end :
+         {End{"a:headEnd", begin_arrow_style_, begin_arrow_width_,
+              begin_arrow_length_},
+          End{"a:tailEnd", end_arrow_style_, end_arrow_width_,
+              end_arrow_length_}}) {
+        auto node = ln.child(end.tag);
+        if (!node) continue;
+        if (auto attr = node.attribute("type")) {
+            end.style = ooxml_to_arrowhead_style(attr.as_string(""));
+        }
+        if (auto attr = node.attribute("w")) {
+            end.width = ooxml_to_arrowhead_width(attr.as_string(""));
+        }
+        if (auto attr = node.attribute("len")) {
+            end.length = ooxml_to_arrowhead_length(attr.as_string(""));
+        }
     }
 }
 
