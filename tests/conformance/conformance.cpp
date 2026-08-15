@@ -456,7 +456,12 @@ std::string part_excerpt(const Package& pkg, std::string_view part) {
 ::testing::AssertionResult ElementAbsent(const Package& pkg,
                                          std::string_view part,
                                          std::string_view xpath) {
-    if (!pkg.has_entry(part)) return ::testing::AssertionSuccess();
+    // A package that lost the part contains no matching element either, so a
+    // vacuous pass here would report the worst outcome as the expected one.
+    if (!pkg.has_entry(part))
+        return ::testing::AssertionFailure()
+               << "part \"" << part << "\" is not in the package, so nothing "
+                  "in it can be absent for the right reason";
     auto matched = pkg.xml(part).select_nodes(std::string(xpath).c_str());
     if (matched.empty()) return ::testing::AssertionSuccess();
     return ::testing::AssertionFailure()
@@ -489,7 +494,15 @@ std::string part_excerpt(const Package& pkg, std::string_view part) {
 
 std::size_t CountMatches(const Package& pkg, std::string_view part,
                          std::string_view xpath) {
-    if (!pkg.has_entry(part)) return 0;
+    // Zero for a missing part is indistinguishable from zero for a part that
+    // is there and empty, and the two mean opposite things; the count has to
+    // report the difference rather than absorb it.
+    if (!pkg.has_entry(part)) {
+        ADD_FAILURE() << "part \"" << part
+                      << "\" is not in the package; counting \"" << xpath
+                      << "\" in it is meaningless";
+        return 0;
+    }
     return pkg.xml(part).select_nodes(std::string(xpath).c_str()).size();
 }
 

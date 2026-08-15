@@ -139,6 +139,10 @@ using Attributes = std::vector<std::pair<std::string, std::string>>;
     const Attributes& attrs = {});
 
 /// No element matches the XPath in `part`.
+///
+/// Fails when `part` is missing: a package that lost the part satisfies
+/// every absence assertion about it, which is the worst outcome reported as
+/// the expected one.
 [[nodiscard]] ::testing::AssertionResult ElementAbsent(
     const Package& pkg, std::string_view part, std::string_view xpath);
 
@@ -150,6 +154,9 @@ using Attributes = std::vector<std::pair<std::string, std::string>>;
     const std::vector<std::string>& expected_children);
 
 /// Number of elements matching the XPath in `part`.
+///
+/// Records a test failure and returns 0 when `part` is missing, so a count
+/// of zero always means the part was read and had nothing in it.
 [[nodiscard]] std::size_t CountMatches(const Package& pkg,
                                        std::string_view part,
                                        std::string_view xpath);

@@ -242,6 +242,12 @@ TEST_F(HarnessSelfTest, ReportsAMissingPartRatherThanPassingVacuously) {
     auto pkg = build(good_package());
     EXPECT_FALSE(conformance::ElementExists(pkg, "ppt/slides/slide2.xml", "//a:blip"));
     EXPECT_FALSE(conformance::ChildOrderIs(pkg, "ppt/slides/slide2.xml", "//a:r", {}));
+    // An absence assertion is the one most likely to be satisfied for the
+    // wrong reason: a package that lost the part entirely contains no matching
+    // element either, and the test would go green on the worst possible
+    // outcome.
+    EXPECT_FALSE(conformance::ElementAbsent(pkg, "ppt/slides/slide2.xml",
+                                            "//a:blip"));
 }
 
 // -- Fixtures --------------------------------------------------------------
