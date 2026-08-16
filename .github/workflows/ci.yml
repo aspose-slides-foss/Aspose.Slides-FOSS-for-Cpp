@@ -70,10 +70,10 @@ jobs:
           - name: macOS AppleClang (arm64)
             os: macos-14
             warnings_as_errors: "OFF"
-          - name: Windows MSVC (VS 2022)
+          - name: Windows MSVC (windows-2022)
             os: windows-2022
             warnings_as_errors: "ON"
-          - name: Windows MSVC (VS 2025)
+          - name: Windows MSVC (windows-2025)
             os: windows-2025
             warnings_as_errors: "ON"
 
@@ -83,12 +83,12 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       # An explicit interpreter on all three operating systems, so the
       # out-of-process conformance checks below run the same Python everywhere.
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
@@ -97,12 +97,24 @@ jobs:
 
       # Recorded in the log because the matrix names an image, not a compiler
       # version: the image decides which compiler "gcc" is, and that changes.
+      #
+      # The compiler is only invoked here when the matrix named one. On the
+      # Windows legs CXX is empty and CMake selects MSVC by itself, while a
+      # bare "c++" on those runners resolves to an unrelated MinGW GCC that is
+      # on PATH and is not what anything here builds with -- printing it would
+      # record the wrong toolchain, which is worse than recording none. The
+      # authoritative line for every leg is CMake's own "The CXX compiler
+      # identification is ..." in the configure step below.
       - name: Record the toolchain
         shell: bash
         run: |
           cmake --version
           python --version
-          ${CXX:-c++} --version || true
+          if [ -n "${CXX:-}" ]; then
+            "$CXX" --version
+          elif [ "$RUNNER_OS" != "Windows" ]; then
+            c++ --version
+          fi
 
       # The install prefix is given at install time, not here, and it comes
       # from github.workspace rather than $PWD: on the Windows runners this
@@ -127,19 +139,29 @@ jobs:
       # conformance tests that assert on the bytes of the saved package.
       # ASPOSE_SLIDES_FOSS_CONFORMANCE_OUT makes each conformance test leave a
       # copy of every file it wrote, which the next step checks from outside.
+      #
+      # --no-tests=error because ctest exits 0 when it finds no tests at all, so
+      # a configure that quietly stopped building the suite would report success
+      # having run nothing. The flag has existed since CMake 3.20, this
+      # project's documented minimum, so it costs no compatibility.
       - name: Test
         shell: bash
         env:
           ASPOSE_SLIDES_FOSS_CONFORMANCE_OUT: ${{ github.workspace }}/conformance-corpus
-        run: ctest --test-dir build --build-config Release --output-on-failure --parallel 4
+        run: ctest --test-dir build --build-config Release --output-on-failure --no-tests=error --parallel 4
 
       # An independent implementation of the package rules plus a third-party
       # reader. --require-python-pptx turns "python-pptx is not installed" from
       # a skip into a failure: a check that silently does not run is not a check.
+      #
+      # --min-files applies the same rule to the corpus itself. Without it, a
+      # conformance suite that stopped saving most of what it writes would still
+      # be reported as fully checked, because every file that did arrive passes.
+      # Raise the number whenever conformance tests that save a file are added.
       - name: Validate the produced packages out of process
         shell: bash
         run: |
-          python tests/conformance/validate.py conformance-corpus --require-python-pptx
+          python tests/conformance/validate.py conformance-corpus --require-python-pptx --min-files 92
 
       - name: Install
         run: cmake --install build --config Release --prefix "${{ github.workspace }}/install"
@@ -159,7 +181,7 @@ jobs:
           python tests/conformance/validate.py consumer-output.pptx --require-python-pptx
 
       - name: Upload the installed package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: install-tree-${{ matrix.os }}-${{ matrix.cc || 'default' }}
           path: install/
@@ -169,7 +191,7 @@ jobs:
       # variables that drive the dependency resolution, so it cannot describe a
       # set of dependencies this build did not use.
       - name: Upload the software bill of materials
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: sbom-${{ matrix.os }}-${{ matrix.cc || 'default' }}
           path: build/aspose-slides-foss-cpp.cdx.json
@@ -177,7 +199,7 @@ jobs:
 
       - name: Upload the conformance corpus
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: conformance-corpus-${{ matrix.os }}-${{ matrix.cc || 'default' }}
           path: conformance-corpus/
@@ -199,21 +221,27 @@ jobs:
       CXX: clang++
     steps:
       - name: Check out
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
+      # BUILD_TESTS is ON by default, but this job exists only to run the suite
+      # under the sanitizer, so it asks for the suite explicitly rather than
+      # inheriting a default that a later change could flip.
       - name: Configure
         run: |
           cmake -S . -B build-asan \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON \
             -DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON
 
       - name: Build
         run: cmake --build build-asan --parallel
 
+      # --no-tests=error: a sanitizer job that finds no tests would otherwise
+      # pass, reporting a clean run of nothing at all.
       - name: Test
         env:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
-        run: ctest --test-dir build-asan --output-on-failure --parallel 4
+        run: ctest --test-dir build-asan --output-on-failure --no-tests=error --parallel 4
 
   # ---------------------------------------------------------------------------
   # The oldest CMake the project says it supports.
@@ -233,7 +261,7 @@ jobs:
       CMAKE_FLOOR_VERSION: 3.20.6
     steps:
       - name: Check out
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Fetch the minimum supported CMake
         run: |
@@ -246,8 +274,12 @@ jobs:
       - name: Record the toolchain
         run: cmake --version
 
+      # --no-tests=error is itself a 3.20 feature, so this job is also the proof
+      # that the flag the other two jobs rely on exists at the documented floor.
       - name: Configure, build and test
         run: |
-          cmake -S . -B build-floor -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build-floor \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON
           cmake --build build-floor --parallel
-          ctest --test-dir build-floor --output-on-failure --parallel 4
+          ctest --test-dir build-floor --output-on-failure --no-tests=error --parallel 4

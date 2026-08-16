@@ -341,11 +341,29 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="fail if python-pptx is not installed instead of skipping read-back",
     )
+    parser.add_argument(
+        "--min-files",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "fail unless at least N files were checked. Zero files already fails, "
+            "but a corpus that shrank because tests stopped writing to it still "
+            "reports success on the files that remain; this turns that into a failure."
+        ),
+    )
     args = parser.parse_args(argv)
 
     files = collect(args.targets)
     if not files:
         print("no presentation files found", file=sys.stderr)
+        return 1
+
+    if len(files) < args.min_files:
+        print(
+            f"expected at least {args.min_files} presentation file(s), found {len(files)}",
+            file=sys.stderr,
+        )
         return 1
 
     failed = 0
