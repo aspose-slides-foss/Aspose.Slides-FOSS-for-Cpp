@@ -8,6 +8,9 @@
 *.py text eol=lf
 CMakeLists.txt text eol=lf
 
+# CMake input templates (cmake/*.in)
+*.in text eol=lf
+
 # Documentation
 *.md text eol=lf
 *.txt text eol=lf

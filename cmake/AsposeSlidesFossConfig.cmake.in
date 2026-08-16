@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+# The library's public headers include <pugixml.hpp>, so pugixml is part of the
+# interface a consumer compiles against, not an implementation detail: it is
+# linked PUBLIC and has to be found before the imported targets are loaded.
+# miniz is used only inside the implementation, but a static archive does not
+# carry its dependencies, so it must be present at link time as well.
+include(CMakeFindDependencyMacro)
+
+@ASPOSE_SLIDES_FOSS_DEPENDENCY_FINDS@
+
+include("${CMAKE_CURRENT_LIST_DIR}/AsposeSlidesFossTargets.cmake")
+
+check_required_components(AsposeSlidesFoss)

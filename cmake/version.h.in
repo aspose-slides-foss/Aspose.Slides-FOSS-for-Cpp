@@ -1,0 +1,26 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Aspose Pty Ltd
+//
+// Generated from cmake/version.h.in by CMake. Do not edit; edit the template.
+
+#pragma once
+
+#include <string_view>
+
+#define ASPOSE_SLIDES_FOSS_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define ASPOSE_SLIDES_FOSS_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define ASPOSE_SLIDES_FOSS_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define ASPOSE_SLIDES_FOSS_VERSION_STRING "@PROJECT_VERSION@"
+
+/// Version as a single comparable integer: major * 10000 + minor * 100 + patch.
+#define ASPOSE_SLIDES_FOSS_VERSION \
+    (ASPOSE_SLIDES_FOSS_VERSION_MAJOR * 10000 + \
+     ASPOSE_SLIDES_FOSS_VERSION_MINOR * 100 + \
+     ASPOSE_SLIDES_FOSS_VERSION_PATCH)
+
+namespace Aspose::Slides::Foss {
+
+/// The version of the library these headers belong to, as "major.minor.patch".
+inline constexpr std::string_view kVersion = ASPOSE_SLIDES_FOSS_VERSION_STRING;
+
+} // namespace Aspose::Slides::Foss
