@@ -1,0 +1,7 @@
+# DRAFT. The URL names a tag that does not exist yet and the checksum is a
+# placeholder; both can only be filled in once a release is tagged and GitHub
+# has produced the archive. See ../README.md.
+sources:
+  "0.1.0":
+    url: "https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/archive/refs/tags/v0.1.0.tar.gz"
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
