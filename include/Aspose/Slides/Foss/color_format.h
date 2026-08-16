@@ -5,6 +5,9 @@
 
 #include <Aspose/Slides/Foss/i_color_format.h>
 
+#include <cmath>
+#include <cstdint>
+
 namespace Aspose::Slides::Foss {
 
 /// Represents a color used in a presentation.

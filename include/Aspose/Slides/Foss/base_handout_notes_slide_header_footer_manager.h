@@ -19,7 +19,7 @@ public:
 
     /// Returns this as IBaseHandoutNotesSlideHeaderFooterManager (const).
     [[nodiscard]] const IBaseHandoutNotesSlideHeaderFooterManager&
-    [[nodiscard]] as_i_base_handout_notes_slide_header_footer_manager() const override;
+    as_i_base_handout_notes_slide_header_footer_manager() const override;
 
 protected:
     BaseHandoutNotesSlideHeaderFooterManager() = default;
