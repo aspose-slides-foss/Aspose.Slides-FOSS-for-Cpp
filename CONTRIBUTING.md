@@ -165,12 +165,18 @@ CI builds and runs the whole suite on every push and every pull request, on thes
 | `ubuntu-24.04` | GCC | off |
 | `ubuntu-24.04` | Clang | off |
 | `macos-14` (arm64) | AppleClang | off |
-| `windows-2022` | MSVC (Visual Studio 2022) | **on** |
-| `windows-2025` | MSVC (Visual Studio 2025) | **on** |
+| `windows-2022` | MSVC | **on** |
+| `windows-2025` | MSVC | **on** |
 
-The matrix names an image, not a compiler version: the image decides which compiler `gcc` and
-`clang` are, and that changes when GitHub updates it. Each leg prints `cmake --version` and the
-compiler's `--version` into the log for that reason, so the run itself records what it built with.
+The matrix names an image, not a compiler version: the image decides which compiler `gcc`, `clang`
+or `cl` is, and that changes when GitHub updates it. The two Windows legs differ in the image, and
+therefore in the MSVC toolset the image happens to carry — they are not pinned to a named Visual
+Studio release, and a table here that named one would go stale the next time GitHub refreshes the
+image.
+
+Every leg prints `cmake --version` into the log, and CMake's own `The CXX compiler identification
+is ...` line in the configure step names the compiler it selected. That line, not the table above,
+is the record of what a given run built with.
 
 Two further jobs run on every push: the suite under AddressSanitizer on `ubuntu-24.04` with Clang,
 and a configure-build-test with **CMake 3.20.6**, the oldest version `cmake_minimum_required` and the

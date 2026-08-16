@@ -267,6 +267,15 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
+That builds the test suite as well, which is the default at top level and means
+GoogleTest is downloaded and the test translation units are compiled. To build
+only the library, turn the suite off:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DASPOSE_SLIDES_FOSS_BUILD_TESTS=OFF
+cmake --build build
+```
+
 **Requires:** C++20 compiler, CMake 3.20+. The library is built as a static
 archive: nothing in the sources is annotated for symbol export, so a shared
 build would export nothing, and the build forces the static form rather than
@@ -470,11 +479,13 @@ The three that differ are the three this library regenerates on every save, deli
 
 - the **full test suite** — unit, integration and conformance — on Ubuntu 22.04
   and 24.04 with both GCC and Clang, on macOS with AppleClang, and on Windows
-  with MSVC from Visual Studio 2022 and 2025;
+  with MSVC on the `windows-2022` and `windows-2025` images;
 - an **out-of-process check** of everything the conformance tests saved:
   `tests/conformance/validate.py` re-implements the package rules
   independently and opens every file with `python-pptx`, a reader that shares
-  none of this library's assumptions;
+  none of this library's assumptions. It is given a floor on the number of
+  files it must find, so a corpus that quietly stopped being written fails
+  instead of passing on whatever remains;
 - an **install**, followed by a build and a run of `examples/consumer/` against
   that install — the check that the package is usable from outside its own
   build tree;
