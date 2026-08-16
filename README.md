@@ -221,12 +221,111 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-Dependencies (fetched automatically via CMake FetchContent):
-- [pugixml](https://github.com/zeux/pugixml) v1.14 — XML parsing
-- [miniz](https://github.com/richgel999/miniz) 3.0.2 — ZIP archive I/O
-- [GoogleTest](https://github.com/google/googletest) v1.15.2 — Testing (build only)
+**Requires:** C++20 compiler, CMake 3.20+. The library is built as a static
+archive: nothing in the sources is annotated for symbol export, so a shared
+build would export nothing, and the build forces the static form rather than
+producing a library that cannot be linked.
 
-**Requires:** C++20 compiler, CMake 3.20+
+Dependencies. Each is looked for as an installed package first and fetched with
+CMake `FetchContent` only if it is not found, so a package manager's copy is
+always preferred to a private clone:
+
+| Dependency | Version | Used for | Needed by a consumer |
+|---|---|---|---|
+| [pugixml](https://github.com/zeux/pugixml) | 1.14 | XML parsing | **Yes** — it appears in this library's public headers |
+| [miniz](https://github.com/richgel999/miniz) | 3.0.2 | ZIP archive I/O | At link time only |
+| [GoogleTest](https://github.com/google/googletest) | 1.15.2 | The test suite | No — only fetched when tests are built |
+
+### Build options
+
+| Option | Default | Effect |
+|---|---|---|
+| `ASPOSE_SLIDES_FOSS_BUILD_TESTS` | ON at top level | Build the test suite. `OFF`, or `-DBUILD_TESTING=OFF`, means no test framework is downloaded at all. |
+| `ASPOSE_SLIDES_FOSS_INSTALL` | ON at top level | Generate the install and export rules. |
+| `ASPOSE_SLIDES_FOSS_FETCH_DEPENDENCIES` | ON | Allow `FetchContent` to supply a dependency that was not found. Package builds set this `OFF` so a missing dependency fails loudly. |
+| `ASPOSE_SLIDES_FOSS_WARNINGS_AS_ERRORS` | OFF | Treat this library's own compiler warnings as errors. |
+| `ASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS` | OFF | Build library and tests with AddressSanitizer. |
+
+### Running the tests
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The suite includes the conformance tests, which assert on the bytes of the
+saved `.pptx` rather than on what this library reads back; see
+`tests/conformance/README.md`.
+
+---
+
+## Installing, and using the installed package
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/your/prefix
+cmake --build build
+cmake --install build
+```
+
+The prefix then contains the headers, the static library, a generated
+`Aspose/Slides/Foss/version.h`, a CycloneDX bill of materials, and a CMake
+package configuration. A consumer needs nothing but the prefix:
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(my_app LANGUAGES CXX)
+
+find_package(AsposeSlidesFoss CONFIG REQUIRED)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE AsposeSlidesFoss::AsposeSlidesFoss)
+```
+
+```bash
+cmake -B build -DCMAKE_PREFIX_PATH=/your/prefix
+```
+
+`examples/consumer/` is exactly that project, and it is built and run against a
+fresh install on every CI run, so the instructions above are checked rather
+than asserted.
+
+Version compatibility is `SameMinorVersion`: before 1.0 the major number
+carries no promise, so `find_package(AsposeSlidesFoss 0.1 CONFIG REQUIRED)`
+accepts any 0.1.x and rejects 0.2.
+
+### Public headers and pugixml
+
+44 of the headers a consumer includes — everything under
+`include/Aspose/Slides/Foss/` outside `_internal/` — include `<pugixml.hpp>`,
+and 34 of them keep a `pugi::xml_node` as a data member (42 members in all).
+**A consumer therefore needs pugixml's headers, not just its library**, and the
+installed
+`AsposeSlidesFossConfig.cmake` calls `find_dependency(pugixml)` for that
+reason. If the library is built with a fetched pugixml rather than an installed
+one, that pugixml is installed into the same prefix alongside it, so the
+`find_dependency` call resolves either way.
+
+This is a leak of an implementation detail into the interface, and it is
+recorded here rather than quietly fixed because the fix is not small. The
+classes expose XML-backed entry points — `init_internal(pugi::xml_node, ...)`,
+`get_sp_pr()`, `ensure_xfrm()` and their neighbours — which are called across
+translation unit boundaries and by the test suite, so they cannot simply be
+moved into a `.cpp`. Removing pugixml from the interface means giving those
+classes an opaque handle or a pimpl and rewriting every one of the 169 uses of
+`pugi::` in those headers along with the call sites behind them — 266 more in
+the sources: a rewrite of the XML-backing layer, not an edit to the headers.
+
+Until that happens, the consequences to plan for are:
+
+- pugixml must be installable and discoverable wherever this library is used;
+- a consumer compiles against pugixml's headers, so a pugixml major-version
+  change is a breaking change for this library too;
+- pugixml is declared as an ordinary public dependency in the packaging drafts
+  under `packaging/`, never as a private or vendored one.
+
+miniz has no such problem: it appears in no installed header, is linked
+privately, and is required only at link time.
 
 ---
 
@@ -277,6 +376,37 @@ which returns a value. `get_inherited_xfrm()` has been removed.
 
 Unknown XML parts encountered during load are preserved verbatim on save —
 opening and re-saving a file will never strip content this library does not yet understand.
+
+---
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and every pull request:
+
+- the **full test suite** — unit, integration and conformance — on Ubuntu 22.04
+  and 24.04 with both GCC and Clang, on macOS with AppleClang, and on Windows
+  with MSVC from Visual Studio 2022 and 2025;
+- an **out-of-process check** of everything the conformance tests saved:
+  `tests/conformance/validate.py` re-implements the package rules
+  independently and opens every file with `python-pptx`, a reader that shares
+  none of this library's assumptions;
+- an **install**, followed by a build and a run of `examples/consumer/` against
+  that install — the check that the package is usable from outside its own
+  build tree;
+- an **AddressSanitizer** run of the suite;
+- a build with the **oldest CMake the project claims to support**, so that
+  number stays a tested claim.
+
+Each run uploads the install tree it produced, the CycloneDX bill of materials
+generated by the build, and the conformance corpus, so a reviewer can download
+exactly what CI built rather than rebuilding it and hoping for the same result.
+
+## Packaging
+
+`packaging/` holds a **draft** vcpkg port and a **draft** Conan recipe. They are
+not submittable and must not be submitted from this repository: no release has
+been tagged, so neither the source reference nor the archive checksum they need
+exists yet. `packaging/README.md` states the blockers precisely.
 
 ---
 
