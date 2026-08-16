@@ -133,7 +133,7 @@ jobs:
       # and CMAKE_BUILD_TYPE is what the single-configuration ones read. Passing
       # both is how one command line serves every generator in the matrix.
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel 4
 
       # The whole suite in one run: unit tests, integration tests and the
       # conformance tests that assert on the bytes of the saved package.
@@ -234,7 +234,7 @@ jobs:
             -DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON
 
       - name: Build
-        run: cmake --build build-asan --parallel
+        run: cmake --build build-asan --parallel 4
 
       # --no-tests=error: a sanitizer job that finds no tests would otherwise
       # pass, reporting a clean run of nothing at all.
@@ -281,5 +281,5 @@ jobs:
           cmake -S . -B build-floor \
             -DCMAKE_BUILD_TYPE=Release \
             -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON
-          cmake --build build-floor --parallel
+          cmake --build build-floor --parallel 4
           ctest --test-dir build-floor --output-on-failure --no-tests=error --parallel 4

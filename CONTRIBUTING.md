@@ -43,8 +43,13 @@ a while.
 git clone https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp.git
 cd Aspose.Slides-FOSS-for-Cpp
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
+cmake --build build --config Release --parallel 4
 ```
+
+Give `--parallel` a number. With no number it means *unlimited* under the Makefile generators, not
+"one job per core": the test suite is over a hundred translation units and Make starts compiling all
+of them at once, which on a typical CI machine or laptop exhausts memory and gets the compiler killed.
+Raise the 4 to suit the machine.
 
 `--config Release` is what a multi-configuration generator (Visual Studio, Xcode) reads and
 `CMAKE_BUILD_TYPE` is what the single-configuration ones read. Passing both is how one command line
@@ -70,7 +75,7 @@ flip that leg in `.github/workflows/ci.yml` in the same pull request.
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel
+cmake --build build --config Release --parallel 4
 ctest --test-dir build --build-config Release --output-on-failure --parallel 4
 ```
 
@@ -132,7 +137,7 @@ a destroyed document) was in this library.
 
 ```bash
 cmake -B build-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON
-cmake --build build-asan --parallel
+cmake --build build-asan --parallel 4
 ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 ctest --test-dir build-asan --output-on-failure
 ```
 
