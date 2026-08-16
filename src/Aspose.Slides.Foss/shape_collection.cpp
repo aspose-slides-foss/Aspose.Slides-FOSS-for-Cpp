@@ -765,15 +765,9 @@ int ShapeCollection::next_shape_id() const {
     auto sp_tree = get_sp_tree();
     if (!sp_tree) return 2;
 
-    int max_id = 1;
-    // Walk all descendants looking for 'id' attributes
-    for (auto node = sp_tree; node; node = node.next_sibling()) {
-        for (auto desc : sp_tree.children()) {
-            // Recursive iteration via pugixml tree walker
-            (void)desc;
-        }
-    }
-    // Use pugixml's tree_walker or manual recursion
+    // Every descendant of the shape tree is visited, not just its immediate
+    // children: an id has to be unique across the slide, and a shape nested in
+    // a group holds one too.
     struct IdFinder : pugi::xml_tree_walker {
         int max_id = 1;
         bool for_each(pugi::xml_node& node) override {

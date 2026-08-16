@@ -129,7 +129,9 @@ void NotesSlidePart::add_placeholder(std::string_view type) {
         max_id = std::max(max_id, sp_id);
     }
 
-    build_placeholder_shape(sp_tree, type, max_id + 1);
+    // The node it returns is already attached to sp_tree; nothing here needs
+    // a handle to it. The cast says the discard is deliberate.
+    static_cast<void>(build_placeholder_shape(sp_tree, type, max_id + 1));
 }
 
 bool NotesSlidePart::is_text_placeholder(std::string_view type) {

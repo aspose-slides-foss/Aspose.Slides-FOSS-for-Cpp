@@ -4,6 +4,7 @@
 #include <Aspose/Slides/Foss/_internal/pptx/custom_properties_part.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <ctime>
 #include <string>
@@ -93,7 +94,14 @@ std::optional<CustomPropertyValue> CustomPropertiesPart::read_value(
             }
         } else if (tag == "vt:bool") {
             std::string lower = text;
-            std::ranges::transform(lower, lower.begin(), ::tolower);
+            // ::tolower takes an int that must be representable as unsigned
+            // char; handing it a negative char -- which any byte above 0x7F is
+            // on a signed-char platform -- is undefined. The cast is what makes
+            // this safe, and taking the result back through unsigned char is
+            // what keeps the conversion in range.
+            std::ranges::transform(lower, lower.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
             return CustomPropertyValue{lower == "true" || lower == "1"};
         } else if (tag == "vt:filetime") {
             auto tp = parse_filetime(text);

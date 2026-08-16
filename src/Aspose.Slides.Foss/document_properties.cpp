@@ -300,8 +300,8 @@ void DocumentProperties::save_to_package() {
             using CPV = Internal::pptx::CustomPropertyValue;
             if (auto* s = std::any_cast<std::string>(&val)) {
                 custom.set_value(name, CPV{*s});
-            } else if (auto* i = std::any_cast<int32_t>(&val)) {
-                custom.set_value(name, CPV{*i});
+            } else if (auto* i32 = std::any_cast<int32_t>(&val)) {
+                custom.set_value(name, CPV{*i32});
             } else if (auto* i = std::any_cast<int>(&val)) {
                 custom.set_value(name, CPV{static_cast<int32_t>(*i)});
             } else if (auto* d = std::any_cast<double>(&val)) {
