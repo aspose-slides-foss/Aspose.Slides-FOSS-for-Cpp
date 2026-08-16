@@ -25,39 +25,39 @@
   "components": [
     {
       "type": "library",
-      "bom-ref": "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_TAG@",
+      "bom-ref": "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_REF@",
       "name": "pugixml",
-      "version": "@ASPOSE_SLIDES_FOSS_PUGIXML_VERSION@",
+      "version": "@ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_VERSION@",
       "description": "XML parser. Linked PUBLIC: it appears in this library's public headers.",
       "scope": "required",
       "licenses": [ { "license": { "id": "MIT" } } ],
-      "purl": "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_TAG@",
+      "purl": "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_REF@",
       "externalReferences": [
         { "type": "vcs", "url": "https://github.com/zeux/pugixml" }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_TAG@",
+      "bom-ref": "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_SBOM_REF@",
       "name": "miniz",
-      "version": "@ASPOSE_SLIDES_FOSS_MINIZ_VERSION@",
+      "version": "@ASPOSE_SLIDES_FOSS_MINIZ_SBOM_VERSION@",
       "description": "ZIP archive reader and writer. Used only inside the implementation.",
       "scope": "required",
       "licenses": [ { "license": { "id": "MIT" } } ],
-      "purl": "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_TAG@",
+      "purl": "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_SBOM_REF@",
       "externalReferences": [
         { "type": "vcs", "url": "https://github.com/richgel999/miniz" }
       ]
     },
     {
       "type": "library",
-      "bom-ref": "pkg:github/google/googletest@@ASPOSE_SLIDES_FOSS_GOOGLETEST_TAG@",
+      "bom-ref": "pkg:github/google/googletest@@ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_REF@",
       "name": "googletest",
-      "version": "@ASPOSE_SLIDES_FOSS_GOOGLETEST_VERSION@",
+      "version": "@ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_VERSION@",
       "description": "Test framework. Fetched only when the test suite is built; never part of an installed package.",
       "scope": "excluded",
       "licenses": [ { "license": { "id": "BSD-3-Clause" } } ],
-      "purl": "pkg:github/google/googletest@@ASPOSE_SLIDES_FOSS_GOOGLETEST_TAG@",
+      "purl": "pkg:github/google/googletest@@ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_REF@",
       "externalReferences": [
         { "type": "vcs", "url": "https://github.com/google/googletest" }
       ]
@@ -67,8 +67,8 @@
     {
       "ref": "pkg:github/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp@@PROJECT_VERSION@",
       "dependsOn": [
-        "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_TAG@",
-        "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_TAG@"
+        "pkg:github/zeux/pugixml@@ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_REF@",
+        "pkg:github/richgel999/miniz@@ASPOSE_SLIDES_FOSS_MINIZ_SBOM_REF@"
       ]
     }
   ]

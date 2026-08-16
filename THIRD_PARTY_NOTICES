@@ -2,7 +2,10 @@ Third-Party Software Notices
 =============================
 
 Aspose.Slides FOSS for C++ uses the following open-source libraries.
-Each library is fetched automatically at build time via CMake FetchContent.
+Each is resolved from an installed package when the build finds one, and
+otherwise fetched at the pinned tag at build time via CMake FetchContent. The
+version numbers below are the pinned ones; the software bill of materials the
+build generates records the versions that particular build actually resolved.
 
 -------------------------------------------------------------------------------
 

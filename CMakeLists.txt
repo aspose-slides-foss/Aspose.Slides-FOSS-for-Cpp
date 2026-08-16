@@ -100,6 +100,21 @@ set(ASPOSE_SLIDES_FOSS_MINIZ_TAG          "3.0.2")
 set(ASPOSE_SLIDES_FOSS_GOOGLETEST_VERSION "1.15.2")
 set(ASPOSE_SLIDES_FOSS_GOOGLETEST_TAG     "v1.15.2")
 
+# The versions above are what this build *asks* for: an exact tag on the fetch
+# path, but only a lower bound on the find_package path, where a request for
+# 1.14 is satisfied by any 1.15 the system happens to have installed. The
+# software bill of materials has to name what was actually resolved, because
+# its whole purpose is matching a build against vulnerability records -- and a
+# bill of materials naming the wrong release is worse than none at all. Each
+# variable below starts at the pinned value and is overwritten by the resolved
+# one wherever a dependency is found rather than fetched.
+set(ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_VERSION    "${ASPOSE_SLIDES_FOSS_PUGIXML_VERSION}")
+set(ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_REF        "${ASPOSE_SLIDES_FOSS_PUGIXML_TAG}")
+set(ASPOSE_SLIDES_FOSS_MINIZ_SBOM_VERSION      "${ASPOSE_SLIDES_FOSS_MINIZ_VERSION}")
+set(ASPOSE_SLIDES_FOSS_MINIZ_SBOM_REF          "${ASPOSE_SLIDES_FOSS_MINIZ_TAG}")
+set(ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_VERSION "${ASPOSE_SLIDES_FOSS_GOOGLETEST_VERSION}")
+set(ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_REF     "${ASPOSE_SLIDES_FOSS_GOOGLETEST_TAG}")
+
 # miniz 3.0.2 and pugixml 1.14 declare a cmake_minimum_required below 3.5,
 # which CMake 4 refuses outright. This asks CMake to treat a project that does
 # so as if it had requested 3.5 policies. It is set here, after this project's
@@ -110,6 +125,10 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 find_package(pugixml ${ASPOSE_SLIDES_FOSS_PUGIXML_VERSION} CONFIG QUIET)
 if(pugixml_FOUND)
+    if(pugixml_VERSION)
+        set(ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_VERSION "${pugixml_VERSION}")
+        set(ASPOSE_SLIDES_FOSS_PUGIXML_SBOM_REF     "${pugixml_VERSION}")
+    endif()
     message(STATUS "pugixml: using installed package ${pugixml_VERSION}")
 elseif(ASPOSE_SLIDES_FOSS_FETCH_DEPENDENCIES)
     FetchContent_Declare(
@@ -128,6 +147,10 @@ endif()
 find_package(miniz ${ASPOSE_SLIDES_FOSS_MINIZ_VERSION} CONFIG QUIET)
 if(miniz_FOUND)
     set(ASPOSE_SLIDES_FOSS_MINIZ_TARGET miniz::miniz)
+    if(miniz_VERSION)
+        set(ASPOSE_SLIDES_FOSS_MINIZ_SBOM_VERSION "${miniz_VERSION}")
+        set(ASPOSE_SLIDES_FOSS_MINIZ_SBOM_REF     "${miniz_VERSION}")
+    endif()
     message(STATUS "miniz: using installed package ${miniz_VERSION}")
 elseif(ASPOSE_SLIDES_FOSS_FETCH_DEPENDENCIES)
     # miniz's own name for its target, which is what the build tree offers;
@@ -339,21 +362,16 @@ endif()
 # ---------------------------------------------------------------------------
 # Software bill of materials
 #
-# Generated from the same variables that drive FetchContent above, so it cannot
-# describe a dependency set the build does not actually use.
+# Generated from the versions the dependency resolution above actually settled
+# on -- the fetched tag where a dependency was fetched, and the version
+# find_package reported where one was found -- so it describes this build and
+# not the request this build started from. Only the path is decided here; the
+# file itself is written at the end of this file, once every dependency,
+# including the test-only one, has been resolved.
 # ---------------------------------------------------------------------------
 
-string(TIMESTAMP ASPOSE_SLIDES_FOSS_SBOM_TIMESTAMP "%Y-%m-%dT%H:%M:%SZ" UTC)
-string(UUID ASPOSE_SLIDES_FOSS_SBOM_UUID
-       NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-       NAME "AsposeSlidesFoss-${PROJECT_VERSION}"
-       TYPE SHA1)
 set(ASPOSE_SLIDES_FOSS_SBOM_PATH
     "${PROJECT_BINARY_DIR}/aspose-slides-foss-cpp.cdx.json")
-configure_file(
-    "${PROJECT_SOURCE_DIR}/cmake/sbom.cdx.json.in"
-    "${ASPOSE_SLIDES_FOSS_SBOM_PATH}"
-    @ONLY)
 
 # ---------------------------------------------------------------------------
 # Install and export
@@ -441,6 +459,10 @@ if(ASPOSE_SLIDES_FOSS_BUILD_TESTS)
 
     find_package(GTest ${ASPOSE_SLIDES_FOSS_GOOGLETEST_VERSION} CONFIG QUIET)
     if(GTest_FOUND)
+        if(GTest_VERSION)
+            set(ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_VERSION "${GTest_VERSION}")
+            set(ASPOSE_SLIDES_FOSS_GOOGLETEST_SBOM_REF     "${GTest_VERSION}")
+        endif()
         message(STATUS "GoogleTest: using installed package ${GTest_VERSION}")
     else()
         FetchContent_Declare(
@@ -609,3 +631,21 @@ if(ASPOSE_SLIDES_FOSS_BUILD_TESTS)
     # building the suite does not require being able to execute it.
     gtest_discover_tests(aspose_slides_foss_tests DISCOVERY_MODE PRE_TEST)
 endif()
+
+# ---------------------------------------------------------------------------
+# Write the software bill of materials
+#
+# Last, so that every dependency above -- including GoogleTest, which is
+# resolved only when the test suite is built -- has already been either found
+# or fetched and has recorded the version this build resolved to.
+# ---------------------------------------------------------------------------
+
+string(TIMESTAMP ASPOSE_SLIDES_FOSS_SBOM_TIMESTAMP "%Y-%m-%dT%H:%M:%SZ" UTC)
+string(UUID ASPOSE_SLIDES_FOSS_SBOM_UUID
+       NAMESPACE "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+       NAME "AsposeSlidesFoss-${PROJECT_VERSION}"
+       TYPE SHA1)
+configure_file(
+    "${PROJECT_SOURCE_DIR}/cmake/sbom.cdx.json.in"
+    "${ASPOSE_SLIDES_FOSS_SBOM_PATH}"
+    @ONLY)
