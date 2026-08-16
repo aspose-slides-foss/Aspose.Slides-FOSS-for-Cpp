@@ -8,40 +8,58 @@ The official open-source C++ library by Aspose.Slides for creating, reading, and
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
+#include <Aspose/Slides/Foss/auto_shape.h>
+#include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/export/save_format.h>
 
 using namespace Aspose::Slides::Foss;
 
 int main() {
-    // Open an existing presentation
-    Presentation pres("input.pptx");
-    auto& slides = pres.slides();
-    // ... work with slides ...
-    pres.save("output.pptx", SaveFormat::PPTX);
+    // Create a presentation. A new one has exactly one slide.
+    Presentation pres;
+    auto& shape = pres.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 50, 300, 100);
+    shape.add_text_frame("Hello, world!");
+    pres.save("new.pptx", SaveFormat::PPTX);
 
-    // Create a new presentation
-    Presentation new_pres;
-    auto& slide = new_pres.slides()[0];
-    new_pres.save("new.pptx", SaveFormat::PPTX);
+    // Open an existing one and save it again. The constructor throws if the
+    // file is not there or is not a presentation package.
+    Presentation opened("new.pptx");
+    opened.save("output.pptx", SaveFormat::PPTX);
 }
 ```
+
+**`presentation.h` is not enough on its own.** It forward-declares the types its collections return,
+so reaching through `slides()[0].shapes()` needs `slide.h` and `shape_collection.h` as well, and
+using what a factory hands back needs that type's header too. Every example below lists exactly what
+it needs; a missing one shows up as *use of undefined type* rather than as a missing function.
 
 ---
 
 ## Features
 
-- **Presentation I/O** — Open, create, and save `.pptx` files with full round-trip fidelity
-- **Slides** — Add, remove, clone, reorder, and iterate slides
-- **Shapes** — AutoShapes, PictureFrames, Tables, Connectors
-- **Text** — TextFrame, Paragraph, Portion with character, paragraph, and text frame formatting (including bullets)
-- **Fill** — Solid, gradient, pattern, and picture fills
-- **Lines** — Width, dash style, arrows, join and alignment
-- **Effects** — Outer shadow, glow, soft edge, blur, reflection, inner shadow
-- **3D** — Bevel, camera, light rig, material, extrusion depth
-- **Document properties** — Core, app, and custom properties
+- **Presentation I/O** — Open, create and save `.pptx` files. A presentation this library did not
+  write survives a load and a save with every part kept: the fixture in `tests/test_data/`, 13 parts
+  including a layout and a master, comes back out with all 13 and its text intact.
+- **Slides** — Add, remove, insert, clone, hide and iterate slides. (Cloning has a defect — see
+  *Limitations*.)
+- **Shapes** — AutoShapes, PictureFrames, Tables, Connectors, and reordering within a slide
+- **Text** — TextFrame, Paragraph, Portion with character, paragraph and text frame formatting
+  (including bullets)
+- **Fill** — Solid, gradient, pattern and picture fills
+- **Lines** — Width, dash style, arrows, cap, compound style, join and alignment
+- **Effects** — Outer shadow, inner shadow, glow, soft edge, blur, reflection, preset shadow, fill
+  overlay
+- **3D** — Bevel, camera, light rig, material, extrusion depth, extrusion and contour colour
+- **Document properties** — Core, app and custom properties
 - **Notes slides** — Per-slide notes with header/footer management
-- **Comments** — Threaded comments with authors, timestamps, and positions
-- **Images** — Embed from file, bytes, or stream
+- **Comments** — Authors, timestamps, positions, and replies. A reply is written into the classic
+  comment list as a `p15:threadingInfo`/`p15:parentCm` extension on the comment, and read back, so a
+  thread survives a round trip. This library does not write a `ppt/threadedComments/` part.
+- **Images** — Embed from a byte range. `add_image` takes a `std::span<const std::uint8_t>` and
+  there is no overload for a file path or a stream.
 
 ---
 
@@ -51,8 +69,10 @@ int main() {
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
-#include <Aspose/Slides/Foss/shape_type.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
+#include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/export/save_format.h>
 
 using namespace Aspose::Slides::Foss;
@@ -68,6 +88,8 @@ pres.save("shapes.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/text_frame.h>
@@ -98,16 +120,24 @@ pres.save("text.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/table.h>
+#include <Aspose/Slides/Foss/text_frame.h>
 #include <Aspose/Slides/Foss/export/save_format.h>
 
 using namespace Aspose::Slides::Foss;
 
+// add_table takes two std::span<const double>. A braced list is not a span,
+// so the widths and heights have to be objects the spans can point at.
+const double column_widths[] = {120.0, 120.0, 120.0};
+const double row_heights[] = {40.0, 40.0};
+
 Presentation pres;
 auto& table = pres.slides()[0].shapes().add_table(
-    50, 50, {120.0, 120.0, 120.0}, {40.0, 40.0});
-table.rows()[0][0].text_frame().set_text("Name");
-table.rows()[0][1].text_frame().set_text("Value");
+    50, 50, column_widths, row_heights);
+table.rows()[0][0].text_frame()->set_text("Name");   // Cell::text_frame() returns a pointer
+table.rows()[0][1].text_frame()->set_text("Value");
 pres.save("table.pptx", SaveFormat::PPTX);
 ```
 
@@ -115,6 +145,8 @@ pres.save("table.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/connector.h>
@@ -139,6 +171,8 @@ pres.save("connector.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/shape_type.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/fill_type.h>
@@ -160,16 +194,17 @@ pres.save("fill.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
 #include <Aspose/Slides/Foss/notes_slide_manager.h>
 #include <Aspose/Slides/Foss/notes_slide.h>
-#include <Aspose/Slides/Foss/text_frame.h>
 #include <Aspose/Slides/Foss/export/save_format.h>
 
 using namespace Aspose::Slides::Foss;
 
 Presentation pres;
-auto& notes = pres.slides()[0].notes_slide_manager().add_notes_slide();
-notes.notes_text_frame().set_text("Speaker notes go here.");
+// add_notes_slide() returns INotesSlide*, not a reference.
+auto* notes = pres.slides()[0].notes_slide_manager().add_notes_slide();
+notes->notes_text_frame().set_text("Speaker notes go here.");
 pres.save("notes.pptx", SaveFormat::PPTX);
 ```
 
@@ -177,9 +212,11 @@ pres.save("notes.pptx", SaveFormat::PPTX);
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>
+#include <Aspose/Slides/Foss/slide.h>
 #include <Aspose/Slides/Foss/comment_author_collection.h>
 #include <Aspose/Slides/Foss/comment_author.h>
 #include <Aspose/Slides/Foss/comment_collection.h>
+#include <Aspose/Slides/Foss/comment.h>
 #include <Aspose/Slides/Foss/drawing/point_f.h>
 #include <Aspose/Slides/Foss/export/save_format.h>
 #include <chrono>
@@ -190,9 +227,18 @@ using namespace Aspose::Slides::Foss::Drawing;
 Presentation pres;
 auto& author = pres.comment_authors().add_author("Jane Smith", "JS");
 auto& slide = pres.slides()[0];
-author.comments().add_comment(
-    "Review this slide", &slide, PointF{2.0, 2.0},
+
+// add_comment takes the slide by reference, not by pointer.
+auto& comment = author.comments().add_comment(
+    "Review this slide", slide, PointF{2.0, 2.0},
     std::chrono::system_clock::now());
+
+// A reply is a comment whose parent is set. It is written into the same
+// classic comment list, carrying a p15:parentCm in its extension list.
+auto& reply = author.comments().add_comment(
+    "Agreed", slide, PointF{2.5, 2.5}, std::chrono::system_clock::now());
+reply.set_parent_comment(&comment);
+
 pres.save("comments.pptx", SaveFormat::PPTX);
 ```
 
@@ -298,7 +344,7 @@ accepts any 0.1.x and rejects 0.2.
 
 44 of the headers a consumer includes — everything under
 `include/Aspose/Slides/Foss/` outside `_internal/` — include `<pugixml.hpp>`,
-and 34 of them keep a `pugi::xml_node` as a data member (42 members in all).
+and 37 of them keep a `pugi::xml_node` as a data member (45 members in all).
 **A consumer therefore needs pugixml's headers, not just its library**, and the
 installed
 `AsposeSlidesFossConfig.cmake` calls `find_dependency(pugixml)` for that
@@ -312,9 +358,18 @@ classes expose XML-backed entry points — `init_internal(pugi::xml_node, ...)`,
 `get_sp_pr()`, `ensure_xfrm()` and their neighbours — which are called across
 translation unit boundaries and by the test suite, so they cannot simply be
 moved into a `.cpp`. Removing pugixml from the interface means giving those
-classes an opaque handle or a pimpl and rewriting every one of the 169 uses of
+classes an opaque handle or a pimpl and rewriting every one of the 172 uses of
 `pugi::` in those headers along with the call sites behind them — 266 more in
 the sources: a rewrite of the XML-backing layer, not an edit to the headers.
+
+The three counts above are what these commands print today:
+
+```sh
+grep -rl 'pugixml.hpp' include/Aspose/Slides/Foss --include='*.h' | grep -v _internal | wc -l   # 44
+grep -rho 'pugi::' include/Aspose/Slides/Foss --include='*.h' | wc -l                            # 246, of which
+grep -rho 'pugi::' include/Aspose/Slides/Foss/_internal --include='*.h' | wc -l                  # 74 are internal -> 172
+grep -rho 'pugi::' src | wc -l                                                                   # 266
+```
 
 Until that happens, the consequences to plan for are:
 
@@ -331,13 +386,35 @@ privately, and is required only at link time.
 
 ## Limitations
 
-The following areas are not yet available:
+### Not available at all
 
-- Charts, SmartArt, OLE objects, mathematical text
-- Animations and slide transitions
-- Export to non-PPTX formats (PDF, HTML, SVG, images)
-- VBA macros, digital signatures
-- Hyperlinks and action settings
+There is no API for these. The member named is the one that does not exist, so a call to it is a
+compile error rather than a silent no-op:
+
+| Area | What is absent |
+|---|---|
+| Charts, SmartArt, OLE objects, mathematical text | `ShapeCollection::add_chart` and the rest |
+| Animations and slide transitions | no timeline, no transition type |
+| Group shapes | `ShapeCollection::add_group_shape` |
+| Hyperlinks and action settings | no `set_hyperlink_click` on a portion format or a shape |
+| Slide backgrounds and themes | no `Slide::background`, no `Presentation::master_theme` |
+| Sections | `Presentation::sections` |
+| Slide size | `Presentation::slide_size`. A new deck is 4:3 (`cx=9144000 cy=6858000`), from the bundled template, and there is no supported way to change it |
+| Saving to a stream | the only `save` overload takes a path (`std::string_view`) |
+| Adding an image from a path or a stream | the only overload is `add_image(std::span<const std::uint8_t>)` |
+| A `ppt/threadedComments/` part | replies are written into the classic comment list instead — see *Features* |
+| Export to non-PPTX formats (PDF, HTML, SVG, images), VBA macros, digital signatures | see *Save formats* below |
+
+### Accepted, but does not reach the file
+
+These are defects, not design boundaries, and they are listed because the call succeeds and the
+object model afterwards agrees with the caller:
+
+- **`slides().add_clone()` loses the source shapes' text.** The clone is registered in
+  `<p:sldIdLst>`, the part is written, and the shape arrives with its geometry, its `a:prstGeom` and
+  its `p:style` — but the `p:txBody` holds a single empty `<a:p>` and the runs are gone.
+- **`masters().add_clone()` does not reach the file.** `masters().size()` reports two afterwards;
+  the saved package holds one `<p:sldMasterId>` and one `ppt/slideMasters/` part.
 
 ### Save formats
 
@@ -374,8 +451,16 @@ parsed into a document that had already been destroyed, so reading it was
 undefined behaviour. Read inherited geometry with `Shape::get_inherited_frame()`,
 which returns a value. `get_inherited_xfrm()` has been removed.
 
-Unknown XML parts encountered during load are preserved verbatim on save —
-opening and re-saving a file will never strip content this library does not yet understand.
+### What a load and a save do to a part this library does not model
+
+A part the library did not itself write is carried through unchanged. Opening
+`tests/test_data/powerpoint_title_and_content.pptx` — 13 parts, hand-authored, with placeholders
+that inherit their geometry from the layout — and saving it again produces 13 parts, no part added
+and none dropped, with **10 of the 13 byte-identical** to the originals and the text preserved.
+
+The three that differ are the three this library regenerates on every save, deliberately:
+`[Content_Types].xml`, `docProps/app.xml` (the deck statistics are recounted from the slides
+`<p:sldIdLst>` registers) and `docProps/core.xml` (`dcterms:modified` is stamped).
 
 ---
 
@@ -407,6 +492,22 @@ exactly what CI built rather than rebuilding it and hoping for the same result.
 not submittable and must not be submitted from this repository: no release has
 been tagged, so neither the source reference nor the archive checksum they need
 exists yet. `packaging/README.md` states the blockers precisely.
+
+---
+
+## Contributing, and reporting things
+
+| Document | What it is for |
+|---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | how to build, how to run the suite and the out-of-process checks, which compilers have to work, and what a good pull request looks like |
+| [`CHANGELOG.md`](CHANGELOG.md) | what changed, in a caller's language. Read *Changed* first if you built against an older commit |
+| [`SECURITY.md`](SECURITY.md) | how to report a vulnerability privately, and what is in and out of scope |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Contributor Covenant 2.1, and how to report a violation |
+
+The one rule worth repeating here: **a fix to a writer ships with a test that asserts on the produced
+`.pptx` package, not on what this library reads back.** A reader and a writer that share a
+misunderstanding of the format agree with each other perfectly, and several of the defects fixed in
+this changelog survived a green suite for exactly that reason.
 
 ---
 
