@@ -100,7 +100,8 @@ TEST_F(CommentsConformance, ResavingACommentedDeckDoesNotDuplicateTheComment) {
 }
 
 /// A reply is modelled in the API and reported back in memory, and the README
-/// advertises threaded comments, so a reply has to survive being written down.
+/// says replies are written into the classic comment list, so a reply has to
+/// survive being written down.
 ///
 /// `CT_Comment` has no attribute for a parent. A thread on a classic comment
 /// is expressed in the extension list, under the `p:ext` whose `@uri` is
