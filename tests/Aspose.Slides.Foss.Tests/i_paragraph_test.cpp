@@ -118,11 +118,18 @@ TEST(IParagraphTest, PresentationReturnsNullForStandalone) {
 }
 
 // Test move semantics preserve state.
+//
+// A move transfers the paragraph; it does not edit it.  Every portion the
+// source held has to be present in the destination, and the paragraph's text
+// is the concatenation of them all.  ParagraphCollection::add and ::insert
+// both take a Paragraph by value, so every paragraph attached to a text frame
+// goes through this constructor: a move that dropped portions would make a
+// paragraph with more than one differently formatted run impossible to build.
 TEST(IParagraphTest, MoveSemantics) {
     Paragraph p1("movable");
     p1.portions().add(Portion("part1"));
 
     Paragraph p2(std::move(p1));
-    EXPECT_EQ(p2.text(), "movable");
-    EXPECT_EQ(p2.portions().size(), 1);
+    EXPECT_EQ(p2.portions().size(), 2u);
+    EXPECT_EQ(p2.text(), "movablepart1");
 }

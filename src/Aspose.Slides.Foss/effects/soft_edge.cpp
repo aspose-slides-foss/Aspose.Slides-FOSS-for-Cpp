@@ -3,6 +3,7 @@
 
 #include <Aspose/Slides/Foss/effects/soft_edge.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 
@@ -19,6 +20,15 @@ void SoftEdge::init_internal(pugi::xml_node element,
     if (auto rad_attr = element_.attribute("rad"); rad_attr) {
         auto emu_value = rad_attr.as_llong(0);
         radius_ = static_cast<double>(emu_value) / Internal::pptx::kEmuPerPoint;
+    }
+
+    // @rad is required by CT_SoftEdgesEffect; a freshly created element has
+    // none, and PowerPoint refuses a file that leaves it off.
+    if (element_) {
+        Internal::pptx::set_attribute(
+            element_, "rad",
+            static_cast<long long>(
+                std::round(radius_ * Internal::pptx::kEmuPerPoint)));
     }
 }
 
@@ -38,7 +48,7 @@ void SoftEdge::set_radius(double value) noexcept {
     // Write back to XML element as EMUs.
     if (element_) {
         auto emu_value = static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint));
-        element_.attribute("rad").set_value(emu_value);
+        Internal::pptx::set_attribute(element_, "rad", emu_value);
     }
 
     // Persist changes.

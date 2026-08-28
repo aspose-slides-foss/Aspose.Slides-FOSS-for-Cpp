@@ -70,7 +70,14 @@ TEST(IReflectionTest, EnableDisableReflection) {
 }
 
 // ---------------------------------------------------------------------------
-// Default values: newly enabled reflection should have expected defaults.
+// Default values: a newly enabled reflection starts at the defaults
+// CT_ReflectionEffect declares, not at zero.
+//
+// This test used to assert zero for stA, endPos and fadeDir. Those are not the
+// schema defaults, and because the serialiser writes every attribute of the
+// element from the model, they were written out explicitly — producing a
+// reflection that is fully transparent at both ends. The element was in the
+// file, valid, reported by PowerPoint, and invisible on the slide.
 // ---------------------------------------------------------------------------
 TEST(IReflectionTest, DefaultValues) {
     Presentation pres;
@@ -81,11 +88,11 @@ TEST(IReflectionTest, DefaultValues) {
     ef.enable_reflection_effect();
     auto* refl = ef.reflection_effect();
     ASSERT_NE(refl, nullptr);
-    EXPECT_EQ(refl->start_pos_alpha(), 0.0);
-    EXPECT_EQ(refl->end_pos_alpha(), 0.0);
-    EXPECT_EQ(refl->fade_direction(), 0.0);
-    EXPECT_EQ(refl->start_reflection_opacity(), 0.0);
-    EXPECT_EQ(refl->end_reflection_opacity(), 0.0);
+    EXPECT_EQ(refl->start_pos_alpha(), 0.0);       // @stPos, default 0
+    EXPECT_EQ(refl->end_pos_alpha(), 100.0);      // @endPos, default 100000
+    EXPECT_EQ(refl->fade_direction(), 90.0);      // @fadeDir, default 5400000
+    EXPECT_EQ(refl->start_reflection_opacity(), 100.0);  // @stA, default 100000
+    EXPECT_EQ(refl->end_reflection_opacity(), 0.0);      // @endA, default 0
     EXPECT_EQ(refl->blur_radius(), 0.0);
     EXPECT_EQ(refl->direction(), 0.0);
     EXPECT_EQ(refl->distance(), 0.0);

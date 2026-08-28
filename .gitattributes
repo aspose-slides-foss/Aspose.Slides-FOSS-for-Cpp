@@ -5,7 +5,11 @@
 *.h text eol=lf
 *.cpp text eol=lf
 *.cmake text eol=lf
+*.py text eol=lf
 CMakeLists.txt text eol=lf
+
+# CMake input templates (cmake/*.in)
+*.in text eol=lf
 
 # Documentation
 *.md text eol=lf

@@ -295,7 +295,10 @@ struct Elements {
     static inline const std::string kPGraphicFrame        = Ns::kP + "graphicFrame";
     static inline const std::string kPNvGraphicFramePr    = Ns::kP + "nvGraphicFramePr";
     static inline const std::string kPCNvGraphicFramePr   = Ns::kP + "cNvGraphicFramePr";
-    static inline const std::string kAGraphicFrameLocking = Ns::kA + "graphicFrameLocking";
+    // CT_NonVisualGraphicFrameProperties allows exactly one child, and its
+    // name is graphicFrameLocks. The *type* is CT_GraphicalObjectFrameLocking,
+    // which is where the older spelling came from.
+    static inline const std::string kAGraphicFrameLocks   = Ns::kA + "graphicFrameLocks";
     static inline const std::string kPNvPr                = Ns::kP + "nvPr";
     static inline const std::string kPXfrm                = Ns::kP + "xfrm";
 

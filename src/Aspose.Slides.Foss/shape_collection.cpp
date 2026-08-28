@@ -765,15 +765,9 @@ int ShapeCollection::next_shape_id() const {
     auto sp_tree = get_sp_tree();
     if (!sp_tree) return 2;
 
-    int max_id = 1;
-    // Walk all descendants looking for 'id' attributes
-    for (auto node = sp_tree; node; node = node.next_sibling()) {
-        for (auto desc : sp_tree.children()) {
-            // Recursive iteration via pugixml tree walker
-            (void)desc;
-        }
-    }
-    // Use pugixml's tree_walker or manual recursion
+    // Every descendant of the shape tree is visited, not just its immediate
+    // children: an id has to be unique across the slide, and a shape nested in
+    // a group holds one too.
     struct IdFinder : pugi::xml_tree_walker {
         int max_id = 1;
         bool for_each(pugi::xml_node& node) override {
@@ -925,6 +919,63 @@ void ShapeCollection::build_connector_xml(
         font_ref.append_attribute("idx") = "minor";
         font_ref.append_child("a:schemeClr").append_attribute("val") = "tx1";
     }
+}
+
+// ===========================================================================
+// build_picture_frame_xml
+// ===========================================================================
+
+void ShapeCollection::build_picture_frame_xml(
+    pugi::xml_node pic, int shape_id, std::string_view name,
+    ShapeType type, double x, double y, double w, double h,
+    std::string_view embed_id) {
+
+    auto prst = shape_type_to_prst(type);
+    if (!prst) prst = "rect";
+
+    auto x_emu = to_emu(x);
+    auto y_emu = to_emu(y);
+    auto w_emu = to_emu(w);
+    auto h_emu = to_emu(h);
+
+    // nvPicPr
+    auto nv_pic_pr = pic.append_child("p:nvPicPr");
+    auto c_nv_pr = nv_pic_pr.append_child("p:cNvPr");
+    c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
+    c_nv_pr.append_attribute("name") = std::string(name).c_str();
+    auto c_nv_pic_pr = nv_pic_pr.append_child("p:cNvPicPr");
+    auto pic_locks = c_nv_pic_pr.append_child("a:picLocks");
+    pic_locks.append_attribute("noChangeAspect") = "1";
+    nv_pic_pr.append_child("p:nvPr");
+
+    // blipFill
+    //
+    // A picture frame whose a:blip carries no r:embed is schema-valid and
+    // shows nothing: the shape is there, sized and positioned, and the image
+    // is not. Refusing is the only outcome the caller can act on.
+    if (embed_id.empty()) {
+        throw std::invalid_argument(
+            "cannot write a picture frame with no image: a:blip needs an "
+            "r:embed relationship to an image part");
+    }
+    auto blip_fill = pic.append_child("p:blipFill");
+    auto blip = blip_fill.append_child("a:blip");
+    blip.append_attribute("r:embed") = std::string(embed_id).c_str();
+    auto stretch = blip_fill.append_child("a:stretch");
+    stretch.append_child("a:fillRect");
+
+    // spPr
+    auto sp_pr = pic.append_child("p:spPr");
+    auto xfrm = sp_pr.append_child("a:xfrm");
+    auto off = xfrm.append_child("a:off");
+    off.append_attribute("x") = x_emu.c_str();
+    off.append_attribute("y") = y_emu.c_str();
+    auto ext = xfrm.append_child("a:ext");
+    ext.append_attribute("cx") = w_emu.c_str();
+    ext.append_attribute("cy") = h_emu.c_str();
+    auto prst_geom = sp_pr.append_child("a:prstGeom");
+    prst_geom.append_attribute("prst") = prst;
+    prst_geom.append_child("a:avLst");
 }
 
 // ===========================================================================
@@ -1084,9 +1135,6 @@ PictureFrame& ShapeCollection::add_picture_frame_impl(
         if (!sp_tree)
             throw std::runtime_error("Cannot add shape: slide has no shape tree");
 
-        auto prst = shape_type_to_prst(type);
-        if (!prst) prst = "rect";
-
         // Resolve image relationship
         auto& image_part_name = image.part_name();
         auto& rels_mgr = slide_part_->rels_manager();
@@ -1118,45 +1166,10 @@ PictureFrame& ShapeCollection::add_picture_frame_impl(
 
         int shape_id = next_shape_id();
         auto name = "Picture " + std::to_string(shape_id);
-        auto x_emu = to_emu(x);
-        auto y_emu = to_emu(y);
-        auto w_emu = to_emu(w);
-        auto h_emu = to_emu(h);
 
         auto pic = insert_or_append(sp_tree, index, "p:pic");
-
-        // nvPicPr
-        auto nv_pic_pr = pic.append_child("p:nvPicPr");
-        auto c_nv_pr = nv_pic_pr.append_child("p:cNvPr");
-        c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
-        c_nv_pr.append_attribute("name") = name.c_str();
-        auto c_nv_pic_pr = nv_pic_pr.append_child("p:cNvPicPr");
-        auto pic_locks = c_nv_pic_pr.append_child("a:picLocks");
-        pic_locks.append_attribute("noChangeAspect") = "1";
-        nv_pic_pr.append_child("p:nvPr");
-
-        // blipFill
-        auto blip_fill = pic.append_child("p:blipFill");
-        auto blip = blip_fill.append_child("a:blip");
-        // r:embed attribute
-        auto r_embed_name = std::string("{") +
-            std::string(Internal::pptx::ns_uri::kR) + "}embed";
-        blip.append_attribute(r_embed_name.c_str()) = embed_id.c_str();
-        auto stretch = blip_fill.append_child("a:stretch");
-        stretch.append_child("a:fillRect");
-
-        // spPr
-        auto sp_pr = pic.append_child("p:spPr");
-        auto xfrm = sp_pr.append_child("a:xfrm");
-        auto off = xfrm.append_child("a:off");
-        off.append_attribute("x") = x_emu.c_str();
-        off.append_attribute("y") = y_emu.c_str();
-        auto ext = xfrm.append_child("a:ext");
-        ext.append_attribute("cx") = w_emu.c_str();
-        ext.append_attribute("cy") = h_emu.c_str();
-        auto prst_geom = sp_pr.append_child("a:prstGeom");
-        prst_geom.append_attribute("prst") = prst;
-        prst_geom.append_child("a:avLst");
+        build_picture_frame_xml(pic, shape_id, name, type, x, y, w, h,
+                                embed_id);
 
         save_to_part();
 
@@ -1222,7 +1235,7 @@ Table& ShapeCollection::add_table_impl(
         c_nv_pr.append_attribute("id") = std::to_string(shape_id).c_str();
         c_nv_pr.append_attribute("name") = name.c_str();
         auto c_nv_gf_pr = nv_gf_pr.append_child("p:cNvGraphicFramePr");
-        auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocking");
+        auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocks");
         gf_locking.append_attribute("noGrp") = "1";
         nv_gf_pr.append_child("p:nvPr");
 

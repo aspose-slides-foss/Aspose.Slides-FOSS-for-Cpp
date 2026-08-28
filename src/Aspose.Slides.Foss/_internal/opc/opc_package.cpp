@@ -52,8 +52,14 @@ void load_from_zip_reader(mz_zip_archive& zip,
 void save_to_zip_writer(mz_zip_archive& zip,
                         const std::unordered_map<std::string, std::vector<uint8_t>>& parts) {
     for (const auto& [name, content] : parts) {
+        // MZ_DEFAULT_COMPRESSION is -1 and the parameter is unsigned. miniz
+        // reads the argument back as a signed int and treats a negative value
+        // as "use the default level", so the wrap-around is the documented way
+        // to ask for it; the cast says so rather than leaving a signed-to-
+        // unsigned conversion for a reader to wonder about.
         if (!mz_zip_writer_add_mem(&zip, name.c_str(), content.data(),
-                                   content.size(), MZ_DEFAULT_COMPRESSION)) {
+                                   content.size(),
+                                   static_cast<mz_uint>(MZ_DEFAULT_COMPRESSION))) {
             mz_zip_writer_end(&zip);
             throw std::runtime_error("Failed to write ZIP entry: " + name);
         }

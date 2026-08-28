@@ -57,37 +57,49 @@ public:
         std::ostream& stream,
         const std::any& options = {}) override;
 
+    /// Register this exporter with ExporterRegistry, once per process.
+    ///
+    /// The registration used to be a namespace-scope initialiser, which a
+    /// static library is free to drop along with the object file when nothing
+    /// else refers to it. Calling this before the registry is consulted is
+    /// what guarantees the map is populated, in a link as well as at runtime.
+    static void ensure_registered();
+
     /// Get all OPC-based presentation formats.
     ///
     /// @return List of format strings: {"Pptx", "Pptm", "Ppsx", "Ppsm", "Potx", "Potm"}.
     [[nodiscard]] static std::vector<std::string> get_supported_formats();
 
-private:
-    /// Update the content type of the main presentation part if converting.
+    /// Check whether this exporter handles the given format.
     ///
-    /// This is needed when saving as a different format than the source
-    /// (e.g., saving a PPTX as POTX).
+    /// @param format_value A SaveFormat value string, e.g. "Potx" or "Pdf".
+    /// @return True for the six OPC presentation formats, false otherwise.
+    [[nodiscard]] static bool is_format_supported(std::string_view format_value);
+
+    /// The main presentation part content type a format requires.
+    ///
+    /// The six OPC presentation formats share one package layout and differ
+    /// only in this one string. PowerPoint refuses a file whose extension and
+    /// main content type disagree, so it is not optional.
+    ///
+    /// @param format_value A SaveFormat value string.
+    /// @return The content type, or an empty string for an unsupported format.
+    [[nodiscard]] static std::string_view main_content_type_for(
+        std::string_view format_value);
+
+    /// Update the content type of the main presentation part.
+    ///
+    /// Resolves the main part through the package's root relationships and
+    /// writes the content type the target format requires, replacing whatever
+    /// the source package declared.
     void update_content_type_if_needed(opc::OpcPackage& package);
+
+private:
 
     /// Mapping from SaveFormat values to main presentation content types.
     static const std::unordered_map<std::string, std::string> kContentTypes;
 
     std::string target_format_;
-};
-
-/// Factory for creating PPTX exporters with specific target formats.
-///
-/// This allows the registry to create format-specific exporter instances.
-class PptxExporterFactory final {
-public:
-    PptxExporterFactory() = delete;
-
-    /// Create a PPTX exporter for a specific format.
-    ///
-    /// @param format_value The target format string (e.g., "Pptx", "Potx").
-    /// @return A new PptxExporter configured for the specified format.
-    [[nodiscard]] static std::unique_ptr<PptxExporter>
-    create_for_format(std::string_view format_value);
 };
 
 } // namespace Aspose::Slides::Foss::Internal::export_

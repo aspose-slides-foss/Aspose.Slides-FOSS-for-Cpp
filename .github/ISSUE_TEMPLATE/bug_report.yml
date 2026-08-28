@@ -1,0 +1,134 @@
+name: Bug report
+description: Something this library does is wrong, or the .pptx it writes is wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. The single most useful thing you can give us is a **minimal
+        program that reproduces it** — twenty lines and a CMake target we can build and run
+        ourselves, so we get the file you got.
+
+        If this is a security issue, do not file it here. See
+        [SECURITY.md](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Edition
+      description: >
+        There are four editions of this library and they differ. This repository is the C++ one;
+        pick another only if you are certain the report belongs here anyway.
+      options:
+        - C++ (this repository)
+        - .NET
+        - Java
+        - Python
+        - More than one edition
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >
+        The commit SHA you built. `git rev-parse HEAD` prints it. Nothing has been released, so a
+        version number on its own does not identify a build — `ASPOSE_SLIDES_FOSS_VERSION_STRING`
+        is the same for every commit.
+      placeholder: "e.g. 032afe9"
+    validations:
+      required: true
+
+  - type: input
+    id: toolchain
+    attributes:
+      label: Compiler, operating system and CMake
+      description: >
+        The compiler and its version, the OS and architecture, and the output of `cmake --version`.
+      placeholder: "e.g. GCC 13.2 on Ubuntu 24.04 x86_64, CMake 3.28.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: configure
+    attributes:
+      label: How you configured the build
+      description: >
+        The full `cmake` configure line. Say in particular whether pugixml and miniz came from
+        `FetchContent` or from installed packages, and which versions, because a different pugixml
+        is a different parser.
+      render: shell
+      placeholder: "cmake -B build -DCMAKE_BUILD_TYPE=Release"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >
+        A complete program we can compile and run. Include the input file if one is needed —
+        attach it, or say how to produce it. Please reduce it as far as it will go.
+      render: cpp
+      placeholder: |
+        #include <Aspose/Slides/Foss/presentation.h>
+        #include <Aspose/Slides/Foss/slide.h>
+        #include <Aspose/Slides/Foss/shape_collection.h>
+        #include <Aspose/Slides/Foss/export/save_format.h>
+
+        using namespace Aspose::Slides::Foss;
+
+        int main() {
+            Presentation pres;
+            // ...
+            pres.save("out.pptx", SaveFormat::PPTX);
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: >
+        If the complaint is about the file rather than the API, say which part of the package and
+        which element — for example "ppt/slides/slide1.xml should contain an `<a:blip r:embed>`".
+        Unzipping the `.pptx` and looking is the fastest way to a fix.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: >
+        The exception and what `what()` said, the XML that was written, or the behaviour of the
+        application that opened the file. Paste text rather than a screenshot where you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sanitizer
+    attributes:
+      label: If it crashes or corrupts memory, the AddressSanitizer output
+      description: >
+        Build with `-DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON` and paste the report. A
+        memory-lifetime fault in an optimised build usually reads the freed bytes intact and looks
+        like nothing at all, so a stack from a plain Release build often points nowhere useful.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: >
+            I checked the README's "Limitations" section, and this is not one of the capabilities
+            documented as absent.
+          required: true
+        - label: >
+            I reproduced this against the current default branch, not only against an older build.
+          required: false

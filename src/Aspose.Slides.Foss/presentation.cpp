@@ -6,11 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <map>
 #include <stdexcept>
 #include <unordered_map>
 
 #include <pugixml.hpp>
 
+#include <Aspose/Slides/Foss/_internal/export/exporter_registry.h>
+#include <Aspose/Slides/Foss/_internal/export/pptx_exporter.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types.h>
 #include <Aspose/Slides/Foss/_internal/opc/content_types_manager.h>
 #include <Aspose/Slides/Foss/_internal/opc/opc_package.h>
@@ -21,6 +24,7 @@
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
 #include <Aspose/Slides/Foss/_internal/pptx/layout_slide_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/master_slide_part.h>
+#include <Aspose/Slides/Foss/_internal/pptx/text_serialization.h>
 #include <Aspose/Slides/Foss/auto_shape.h>
 #include <Aspose/Slides/Foss/base_portion_format.h>
 #include <Aspose/Slides/Foss/paragraph.h>
@@ -48,7 +52,9 @@
 #include <Aspose/Slides/Foss/column.h>
 #include <Aspose/Slides/Foss/column_collection.h>
 #include <Aspose/Slides/Foss/notes_slide.h>
+#include <Aspose/Slides/Foss/picture_frame.h>
 #include <Aspose/Slides/Foss/pp_image.h>
+#include <Aspose/Slides/Foss/shape_collection.h>
 #include <Aspose/Slides/Foss/row.h>
 #include <Aspose/Slides/Foss/row_collection.h>
 #include <Aspose/Slides/Foss/slide.h>
@@ -153,6 +159,11 @@ Presentation::Presentation(std::string_view path) : masters_(this), slides_(this
                 pptx::CommentsPart::load_for_slide(*opc_package_, slide_part_name);
             if (!comments_part) continue;
 
+            // (authorId, idx) -> the comment object built for it, so a reply
+            // can be linked to its parent once every comment exists.
+            std::map<std::pair<int32_t, int32_t>, Comment*> by_ref;
+            std::vector<std::pair<Comment*, pptx::ParentCommentRef>> replies;
+
             for (auto& cd : comments_part->get_comments()) {
                 int32_t author_id = cd.author_id();
                 // Find the matching author in our collection.
@@ -166,10 +177,22 @@ Presentation::Presentation(std::string_view path) : masters_(this), slides_(this
                         Drawing::PointF pos(
                             static_cast<float>(cd.pos_x()),
                             static_cast<float>(cd.pos_y()));
-                        ca.comments().add_comment(
+                        auto& created = ca.comments().add_comment(
                             cd.text(), slide, pos, tp);
+                        by_ref.emplace(std::pair{author_id, cd.idx()},
+                                       &created);
+                        if (auto parent = cd.parent_comment()) {
+                            replies.emplace_back(&created, *parent);
+                        }
                         break;
                     }
+                }
+            }
+
+            for (auto& [reply, parent_ref] : replies) {
+                auto it = by_ref.find({parent_ref.author_id, parent_ref.idx});
+                if (it != by_ref.end()) {
+                    reply->set_parent_comment(it->second);
                 }
             }
         }
@@ -385,9 +408,25 @@ std::vector<uint8_t> serialize_xml(pugi::xml_document& doc) {
 
 } // anonymous namespace
 
-void Presentation::save(std::string_view path, SaveFormat /*format*/) {
+void Presentation::save(std::string_view path, SaveFormat format) {
     namespace opc = Internal::opc;
     namespace pptx = Internal::pptx;
+    namespace export_ = Internal::export_;
+
+    // Only the six OPC presentation formats are implemented. Writing a PPTX
+    // package and naming it after some other format is worse than refusing:
+    // the call reports success and the user is left with a file PowerPoint
+    // rejects, saying its extension has changed.
+    const std::string format_name(to_string_view(format));
+    export_::PptxExporter::ensure_registered();
+    if (!export_::ExporterRegistry::is_format_supported(format_name)) {
+        // Naming the formats that do work is the difference between a message
+        // the caller can act on and one they have to search for.
+        throw std::invalid_argument(
+            "Export format '" + format_name +
+            "' is not supported; this build writes Pptx, Pptm, Ppsx, Ppsm, "
+            "Potx and Potm");
+    }
 
     int img_counter = 1;
 
@@ -577,6 +616,40 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
 
         int64_t slide_id = 256;
 
+        // Put an image into the package and return the relationship id the
+        // slide uses to reference it: the part bytes, a Default content type
+        // for the extension, and one slide->image relationship, reused if the
+        // same image is referenced twice. Picture frames and picture fills
+        // share this; they differ only in the element carrying the r:embed.
+        auto embed_image = [&](PPImage* pp_img,
+                               std::string_view slide_part) -> std::string {
+            if (!pp_img) return {};
+
+            auto ext = image_utils::guess_extension(pp_img->raw_data());
+            if (pp_img->part_name().empty()) {
+                pp_img->set_part_name("ppt/media/image" +
+                                      std::to_string(img_counter++) + "." + ext);
+            }
+            pkg->set_part(pp_img->part_name(), pp_img->binary_data());
+
+            opc::ContentTypesManager img_ct(*pkg);
+            img_ct.add_default(ext, pp_img->content_type());
+            img_ct.save();
+
+            auto img_target = "../media/" +
+                pp_img->part_name().substr(pp_img->part_name().rfind('/') + 1);
+
+            opc::RelationshipsManager slide_rels(*pkg, slide_part);
+            for (const auto& rel :
+                 slide_rels.get_relationships_by_type(opc::rel_types::kImage)) {
+                if (rel.target == img_target) return rel.id;
+            }
+            auto img_rid =
+                slide_rels.add_relationship(opc::rel_types::kImage, img_target);
+            slide_rels.save();
+            return img_rid;
+        };
+
         for (std::size_t i = 0; i < slides_.size(); ++i) {
             int num = static_cast<int>(i) + 1;
             std::string slide_part_name =
@@ -695,6 +768,22 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
                                 }
                             }
                         }
+                    } else if (auto* pic_frame =
+                                   dynamic_cast<PictureFrame*>(&shape)) {
+                        // A picture frame is a p:pic, not a p:sp. Serialising
+                        // it as an auto shape loses the image entirely and
+                        // leaves a blank rectangle in its place.
+                        auto img_rid =
+                            embed_image(pic_frame->pp_image(), slide_part_name);
+                        auto node = spTree.append_child("p:pic");
+                        ShapeCollection::build_picture_frame_xml(
+                            node, cur_id,
+                            shape.name().empty()
+                                ? "Picture " + std::to_string(cur_id)
+                                : shape.name(),
+                            shape.shape_type(),
+                            shape.x(), shape.y(),
+                            shape.width(), shape.height(), img_rid);
                     } else {
                         auto node = spTree.append_child("p:sp");
                         shapes.build_auto_shape_xml(
@@ -709,6 +798,19 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
                         // Serialize text frame content into the p:txBody.
                         if (auto* ashape = dynamic_cast<AutoShape*>(&shape)) {
                             auto* tf = ashape->text_frame();
+
+                            // Text-frame properties are written whether or not
+                            // there is any text: margins, wrapping, anchoring
+                            // and autofit are properties of the frame.
+                            if (tf) {
+                                auto body_pr = node.child("p:txBody")
+                                                   .child("a:bodyPr");
+                                if (body_pr) {
+                                    pptx::serialize_body_pr(
+                                        body_pr, tf->text_frame_format());
+                                }
+                            }
+
                             if (tf && !tf->text().empty()) {
                                 // Mark shape as text box.
                                 auto nvSpPr = node.child("p:nvSpPr");
@@ -736,17 +838,15 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
                                          ++pi) {
                                         auto a_p = txbody.append_child("a:p");
 
-                                        // Paragraph properties (alignment, etc.).
-                                        // Default to center if not explicitly set
-                                        // (matches .NET AddTextFrame behavior).
+                                        // Paragraph properties. Written only
+                                        // when the caller set something: an
+                                        // empty a:pPr says nothing, and an
+                                        // invented algn would take away the
+                                        // caller's way of inheriting one.
                                         auto& pf = paras[pi].paragraph_format();
-                                        {
-                                            auto pPr = a_p.append_child("a:pPr");
-                                            auto actual_align = pf.alignment();
-                                            if (actual_align == TextAlignment::NOT_DEFINED)
-                                                actual_align = TextAlignment::CENTER;
-                                            auto algn = alignment_to_ooxml_str(actual_align);
-                                            if (algn) pPr.append_attribute("algn") = algn;
+                                        if (pptx::ppr_has_content(pf)) {
+                                            pptx::serialize_ppr(
+                                                a_p.append_child("a:pPr"), pf);
                                         }
 
                                         // Write individual portions with formatting.
@@ -796,55 +896,19 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
 
                                 // Handle picture fill image embedding.
                                 if (shape.fill_format().fill_type() == FillType::PICTURE) {
-                                    auto* img_ptr = shape.fill_format()
-                                        .picture_fill_format().picture().image();
-                                    if (img_ptr) {
-                                        auto* pp_img = dynamic_cast<PPImage*>(img_ptr);
-                                        if (pp_img) {
-                                            // Assign part name if not set.
-                                            if (pp_img->part_name().empty()) {
-                                                auto ext = image_utils::guess_extension(
-                                                    pp_img->raw_data());
-                                                auto part_name = "ppt/media/image" +
-                                                    std::to_string(img_counter++) +
-                                                    "." + ext;
-                                                pp_img->set_part_name(part_name);
-                                            }
-                                            // Write image data to package.
-                                            auto data = pp_img->binary_data();
-                                            pkg->set_part(pp_img->part_name(), data);
-
-                                            // Add content type for image.
-                                            opc::ContentTypesManager img_ct(*pkg);
-                                            img_ct.add_default(
-                                                image_utils::guess_extension(
-                                                    pp_img->raw_data()),
-                                                pp_img->content_type());
-                                            img_ct.save();
-
-                                            // Create relationship from slide to image.
-                                            opc::RelationshipsManager slide_rels(
-                                                *pkg, slide_part_name);
-                                            auto img_target =
-                                                "../media/" + pp_img->part_name().substr(
-                                                    pp_img->part_name().rfind('/') + 1);
-                                            auto img_rid =
-                                                slide_rels.add_relationship(
-                                                    opc::rel_types::kImage,
-                                                    img_target);
-                                            slide_rels.save();
-
-                                            // Set r:embed on a:blip.
-                                            auto blip_fill =
-                                                new_sp_pr.child("a:blipFill");
-                                            if (blip_fill) {
-                                                auto blip =
-                                                    blip_fill.child("a:blip");
-                                                if (blip) {
-                                                    blip.append_attribute("r:embed") =
-                                                        img_rid.c_str();
-                                                }
-                                            }
+                                    auto* pp_img = dynamic_cast<PPImage*>(
+                                        shape.fill_format()
+                                             .picture_fill_format()
+                                             .picture().image());
+                                    auto img_rid =
+                                        embed_image(pp_img, slide_part_name);
+                                    if (!img_rid.empty()) {
+                                        // Set r:embed on a:blip.
+                                        auto blip = new_sp_pr.child("a:blipFill")
+                                                             .child("a:blip");
+                                        if (blip) {
+                                            blip.append_attribute("r:embed") =
+                                                img_rid.c_str();
                                         }
                                     }
                                 }
@@ -881,7 +945,7 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
                 auto tbl_name = "Table " + std::to_string(tbl_id);
                 c_nv_pr_tbl.append_attribute("name") = tbl_name.c_str();
                 auto c_nv_gf_pr = nv_gf_pr.append_child("p:cNvGraphicFramePr");
-                auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocking");
+                auto gf_locking = c_nv_gf_pr.append_child("a:graphicFrameLocks");
                 gf_locking.append_attribute("noGrp") = "1";
                 nv_gf_pr.append_child("p:nvPr");
 
@@ -961,10 +1025,8 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
                             for (std::size_t pi = 0; pi < paras.size(); ++pi) {
                                 auto p_el = txbody.append_child("a:p");
                                 auto& pf = paras[pi].paragraph_format();
-                                if (pf.alignment() != TextAlignment::NOT_DEFINED) {
-                                    auto pPr = p_el.append_child("a:pPr");
-                                    auto algn = alignment_to_ooxml_str(pf.alignment());
-                                    if (algn) pPr.append_attribute("algn") = algn;
+                                if (pptx::ppr_has_content(pf)) {
+                                    pptx::serialize_ppr(p_el.append_child("a:pPr"), pf);
                                 }
                                 auto r_el = p_el.append_child("a:r");
                                 auto t_el = r_el.append_child("a:t");
@@ -1219,29 +1281,62 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
 
             if (!has_comments) continue;
 
-            // Create or load the comments part for this slide.
+            // Reuse the comments part the slide already has, if any. A slide
+            // may carry at most one comments relationship; creating a second
+            // one on every save produces a package PowerPoint refuses. The
+            // in-memory comment list is the whole truth for this slide, so the
+            // part is emptied and rewritten rather than appended to, which
+            // would duplicate every comment that was loaded from it.
             opc::RelationshipsManager slide_rels(*pkg, slide_part_name);
-            auto comments_part = pptx::CommentsPart::create_for_slide(
-                *pkg, slide_part_name, &slide_rels);
+            auto existing =
+                pptx::CommentsPart::load_for_slide(*pkg, slide_part_name);
+            auto comments_part = existing
+                ? std::move(*existing)
+                : pptx::CommentsPart::create_for_slide(
+                      *pkg, slide_part_name, &slide_rels);
+            comments_part.clear();
             slide_rels.save();
 
-            // Add each comment for this slide.
+            // Allocate every comment's (authorId, idx) before writing any of
+            // them. A reply names its parent by that pair, and the parent may
+            // belong to a different author, so the identities have to exist
+            // before the first element is emitted.
+            struct PendingComment {
+                const Comment* comment;
+                pptx::ParentCommentRef ref;
+            };
+            std::vector<PendingComment> pending;
+            std::unordered_map<const IComment*, pptx::ParentCommentRef> refs;
             for (std::size_t a = 0; a < comment_authors_.size(); ++a) {
                 auto& ca = comment_authors_[a];
                 int32_t aid = author_ids[a];
                 for (std::size_t c = 0; c < ca.comments().size(); ++c) {
                     auto& comment = ca.comments()[c];
                     if (comment.slide() != &slide) continue;
-
-                    auto idx = authors_part.next_comment_idx(aid);
-                    auto dt_str = pptx::dt_to_str(comment.created_time());
-                    comments_part.add_comment(
-                        aid, idx,
-                        comment.text(),
-                        static_cast<double>(comment.position().x),
-                        static_cast<double>(comment.position().y),
-                        dt_str);
+                    pptx::ParentCommentRef ref{
+                        aid, authors_part.next_comment_idx(aid)};
+                    refs.emplace(&comment, ref);
+                    pending.push_back({&comment, ref});
                 }
+            }
+
+            for (const auto& item : pending) {
+                std::optional<pptx::ParentCommentRef> parent;
+                if (auto* p = item.comment->parent_comment()) {
+                    // A parent on another slide cannot be referenced from this
+                    // part, so such a reply is written as a top-level comment
+                    // rather than as a dangling reference.
+                    if (auto it = refs.find(p); it != refs.end()) {
+                        parent = it->second;
+                    }
+                }
+                comments_part.add_comment(
+                    item.ref.author_id, item.ref.idx,
+                    item.comment->text(),
+                    static_cast<double>(item.comment->position().x),
+                    static_cast<double>(item.comment->position().y),
+                    pptx::dt_to_str(item.comment->created_time()),
+                    parent);
             }
 
             authors_part.save();
@@ -1253,10 +1348,19 @@ void Presentation::save(std::string_view path, SaveFormat /*format*/) {
     if (!document_properties_.package_) {
         document_properties_.package_ = pkg;
     }
+    // Slides, notes, paragraphs and words describe the deck that was just
+    // assembled, so they are recounted here rather than reported from
+    // whatever the template shipped with.
+    document_properties_.refresh_statistics(*pkg, pres_part);
     document_properties_.save_to_package();
 
     // --- Write the ZIP file to disk ---
-    pkg->save(std::filesystem::path(std::string(path)));
+    // Through the exporter for the requested format, which stamps the main
+    // part with that format's content type before the package is written.
+    // Resolved through the registry rather than constructed here, so that an
+    // exporter registered from anywhere else is reachable from save() too.
+    export_::ExporterRegistry::get_exporter(format_name)
+        ->export_presentation(*pkg, path);
 }
 
 void Presentation::dispose() {

@@ -16,6 +16,11 @@ class IBaseSlide;
 
 namespace Aspose::Slides::Foss::Effects {
 
+/// Returns the ST_PresetShadowVal token ("shdw1" … "shdw20") for a preset.
+///
+/// Not the display name returned by `to_string_view(PresetShadowType)`.
+const char* preset_shadow_type_to_ooxml(PresetShadowType value);
+
 /// Represents a preset shadow effect applied to a shape.
 class PresetShadow final : public IPresetShadow, public IImageTransformOperation {
 public:

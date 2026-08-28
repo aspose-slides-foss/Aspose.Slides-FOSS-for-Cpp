@@ -32,18 +32,7 @@ Paragraph::Paragraph(std::string text) : impl_(std::make_unique<Impl>()) {
 
 Paragraph::~Paragraph() = default;
 
-Paragraph::Paragraph(Paragraph&& other) noexcept
-    : impl_(std::move(other.impl_)) {
-    if (impl_) {
-        // Preserve canonical text by keeping only the first portion (created by
-        // the constructor).  Additional portions added afterwards are discarded
-        // so that text() matches the original constructor text and
-        // portions().size() == 1.
-        while (impl_->portions.size() > 1) {
-            impl_->portions.remove_at(impl_->portions.size() - 1);
-        }
-    }
-}
+Paragraph::Paragraph(Paragraph&& other) noexcept = default;
 
 Paragraph& Paragraph::operator=(Paragraph&&) noexcept = default;
 
@@ -142,9 +131,12 @@ void Paragraph::init_internal(pugi::xml_node p_element,
     // Initialize paragraph format from <a:pPr> element.
     auto ppr = p_element.child("a:pPr");
     if (!ppr) ppr = p_element.child(Internal::pptx::Elements::kAPPr.c_str());
+    // The <a:p> goes with it: most paragraphs in a real deck carry no
+    // <a:pPr>, and without the parent the format has nowhere to write the
+    // first property that gets set.
     impl_->format.init_internal(ppr, [slide_part]() {
         if (slide_part) slide_part->save();
-    });
+    }, p_element);
 
     if (slide_part && parent_slide) {
         if (auto* slide = dynamic_cast<Slide*>(parent_slide)) {

@@ -3,6 +3,8 @@
 
 #include <Aspose/Slides/Foss/effects/preset_shadow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/effect_color.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 #include <string_view>
@@ -69,6 +71,10 @@ const char* preset_to_ooxml(PresetShadowType val) {
 
 } // namespace
 
+const char* preset_shadow_type_to_ooxml(PresetShadowType value) {
+    return preset_to_ooxml(value);
+}
+
 void PresetShadow::init_internal(pugi::xml_node element,
                                  std::function<void()> save_callback,
                                  IBaseSlide* /*parent_slide*/) {
@@ -89,6 +95,20 @@ void PresetShadow::init_internal(pugi::xml_node element,
     if (auto attr = element_.attribute("prst"); attr) {
         preset_ = preset_from_ooxml(attr.as_string());
     }
+    // CT_PresetShadowEffect requires @prst and exactly one colour child; a
+    // freshly created element has neither, and PowerPoint refuses a file that
+    // leaves either off.
+    if (element_) {
+        Internal::pptx::set_attribute(element_, "prst",
+                                      preset_to_ooxml(preset_));
+        if (!Internal::pptx::read_effect_color(element_, shadow_color_)) {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+        }
+        shadow_color_.set_on_changed([this] {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+            if (save_callback_) save_callback_();
+        });
+    }
 }
 
 void PresetShadow::save() {
@@ -108,7 +128,7 @@ PresetShadowType PresetShadow::preset() const noexcept { return preset_; }
 void PresetShadow::set_direction(double value) noexcept {
     direction_ = value;
     if (element_) {
-        element_.attribute("dir").set_value(
+        Internal::pptx::set_attribute(element_, "dir",
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -117,7 +137,7 @@ void PresetShadow::set_direction(double value) noexcept {
 void PresetShadow::set_distance(double value) noexcept {
     distance_ = value;
     if (element_) {
-        element_.attribute("dist").set_value(
+        Internal::pptx::set_attribute(element_, "dist",
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
@@ -126,7 +146,7 @@ void PresetShadow::set_distance(double value) noexcept {
 void PresetShadow::set_preset(PresetShadowType value) noexcept {
     preset_ = value;
     if (element_) {
-        element_.attribute("prst").set_value(preset_to_ooxml(value));
+        Internal::pptx::set_attribute(element_, "prst", preset_to_ooxml(value));
     }
     if (save_callback_) save_callback_();
 }

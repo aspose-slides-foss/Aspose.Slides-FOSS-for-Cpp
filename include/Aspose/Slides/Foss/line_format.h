@@ -47,7 +47,7 @@ public:
     /// @param ln The ln element to insert into.
     /// @param tag The qualified child element tag.
     /// @return The newly inserted element.
-    pugi::xml_node insert_ln_child(pugi::xml_node ln, std::string_view tag);
+    pugi::xml_node insert_ln_child(pugi::xml_node ln, std::string_view tag) const;
 
     /// Save changes via the save callback.
     void save();
@@ -96,61 +96,71 @@ public:
 
     /// Returns the line width in points.
     [[nodiscard]] double width() const noexcept override { return width_; }
-    void set_width(double value) noexcept override { width_ = value; }
+    void set_width(double value) noexcept override;
 
     /// Returns the line dash style.
     [[nodiscard]] LineDashStyle dash_style() const noexcept override { return dash_style_; }
-    void set_dash_style(LineDashStyle value) noexcept override { dash_style_ = value; }
+    void set_dash_style(LineDashStyle value) noexcept override;
 
     /// Returns the custom dash pattern.
     [[nodiscard]] std::vector<float> custom_dash_pattern() const override { return custom_dash_pattern_; }
-    void set_custom_dash_pattern(std::vector<float> value) override { custom_dash_pattern_ = std::move(value); }
+    void set_custom_dash_pattern(std::vector<float> value) override;
 
     /// Returns the line cap style.
     [[nodiscard]] LineCapStyle cap_style() const noexcept override { return cap_style_; }
-    void set_cap_style(LineCapStyle value) noexcept override { cap_style_ = value; }
+    void set_cap_style(LineCapStyle value) noexcept override;
 
     /// Returns the line style (single, double, etc.).
     [[nodiscard]] LineStyle style() const noexcept override { return style_; }
-    void set_style(LineStyle value) noexcept override { style_ = value; }
+    void set_style(LineStyle value) noexcept override;
 
     /// Returns the line alignment.
     [[nodiscard]] LineAlignment alignment() const noexcept override { return alignment_; }
-    void set_alignment(LineAlignment value) noexcept override { alignment_ = value; }
+    void set_alignment(LineAlignment value) noexcept override;
 
     /// Returns the line join style.
     [[nodiscard]] LineJoinStyle join_style() const noexcept override { return join_style_; }
-    void set_join_style(LineJoinStyle value) noexcept override { join_style_ = value; }
+    void set_join_style(LineJoinStyle value) noexcept override;
 
     /// Returns the miter limit of a line.
     [[nodiscard]] double miter_limit() const noexcept override { return miter_limit_; }
-    void set_miter_limit(double value) noexcept override { miter_limit_ = value; }
+    void set_miter_limit(double value) noexcept override;
 
     /// Returns the begin arrowhead style.
     [[nodiscard]] LineArrowheadStyle begin_arrowhead_style() const noexcept override { return begin_arrow_style_; }
-    void set_begin_arrowhead_style(LineArrowheadStyle value) noexcept override { begin_arrow_style_ = value; }
+    void set_begin_arrowhead_style(LineArrowheadStyle value) noexcept override;
 
     /// Returns the begin arrowhead width.
     [[nodiscard]] LineArrowheadWidth begin_arrowhead_width() const noexcept override { return begin_arrow_width_; }
-    void set_begin_arrowhead_width(LineArrowheadWidth value) noexcept override { begin_arrow_width_ = value; }
+    void set_begin_arrowhead_width(LineArrowheadWidth value) noexcept override;
 
     /// Returns the begin arrowhead length.
     [[nodiscard]] LineArrowheadLength begin_arrowhead_length() const noexcept override { return begin_arrow_length_; }
-    void set_begin_arrowhead_length(LineArrowheadLength value) noexcept override { begin_arrow_length_ = value; }
+    void set_begin_arrowhead_length(LineArrowheadLength value) noexcept override;
 
     /// Returns the end arrowhead style.
     [[nodiscard]] LineArrowheadStyle end_arrowhead_style() const noexcept override { return end_arrow_style_; }
-    void set_end_arrowhead_style(LineArrowheadStyle value) noexcept override { end_arrow_style_ = value; }
+    void set_end_arrowhead_style(LineArrowheadStyle value) noexcept override;
 
     /// Returns the end arrowhead width.
     [[nodiscard]] LineArrowheadWidth end_arrowhead_width() const noexcept override { return end_arrow_width_; }
-    void set_end_arrowhead_width(LineArrowheadWidth value) noexcept override { end_arrow_width_ = value; }
+    void set_end_arrowhead_width(LineArrowheadWidth value) noexcept override;
 
     /// Returns the end arrowhead length.
     [[nodiscard]] LineArrowheadLength end_arrowhead_length() const noexcept override { return end_arrow_length_; }
-    void set_end_arrowhead_length(LineArrowheadLength value) noexcept override { end_arrow_length_ = value; }
+    void set_end_arrowhead_length(LineArrowheadLength value) noexcept override;
 
 private:
+    /// Write the whole in-memory model onto an existing or new <a:ln>.
+    ///
+    /// Every attribute and child element the model owns is rewritten, in
+    /// CT_LineProperties order; anything else on the element (an a:extLst, or a
+    /// fill type this class does not model) is left alone.
+    void apply_to_ln(pugi::xml_node ln) const;
+
+    /// Push the in-memory model into the backing XML, if there is any.
+    void persist();
+
     double width_ = 0.0;
     LineDashStyle dash_style_ = LineDashStyle::NOT_DEFINED;
     std::vector<float> custom_dash_pattern_;

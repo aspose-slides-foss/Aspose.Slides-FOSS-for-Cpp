@@ -4,10 +4,17 @@
 #include <Aspose/Slides/Foss/document_properties.h>
 
 #include <algorithm>
+#include <cctype>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <variant>
+#include <vector>
+
+#include <pugixml.hpp>
 
 #include <Aspose/Slides/Foss/_internal/opc/opc_package.h>
+#include <Aspose/Slides/Foss/_internal/opc/relationships_manager.h>
 #include <Aspose/Slides/Foss/_internal/pptx/app_properties_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/core_properties_part.h>
 #include <Aspose/Slides/Foss/_internal/pptx/custom_properties_part.h>
@@ -114,6 +121,114 @@ Internal::pptx::CustomPropertiesPart& DocumentProperties::ensure_custom() {
     return *custom_part_;
 }
 
+namespace {
+
+/// Number of whitespace-separated tokens in @p text.
+int count_words(std::string_view text) {
+    int words = 0;
+    bool in_word = false;
+    for (unsigned char ch : text) {
+        const bool space = std::isspace(ch) != 0;
+        if (!space && !in_word) ++words;
+        in_word = !space;
+    }
+    return words;
+}
+
+} // namespace
+
+/// The slide parts the presentation actually registers, in `p:sldIdLst` order.
+///
+/// A slide-shaped part in the ZIP is not a slide of the deck: what makes it
+/// one is a `<p:sldId>` whose `r:id` resolves to it. An orphan part that
+/// survives a deletion would otherwise be counted, and docProps would disagree
+/// with what opens.
+static std::vector<std::string> registered_slide_parts(
+    const Internal::opc::InMemoryOpcPackage& package,
+    std::string_view presentation_part) {
+    std::vector<std::string> result;
+
+    auto content = package.get_part(std::string(presentation_part));
+    if (!content) return result;
+    pugi::xml_document doc;
+    if (!doc.load_buffer(content->data(), content->size())) return result;
+
+    auto slash = presentation_part.rfind('/');
+    const std::string base =
+        slash == std::string_view::npos
+            ? std::string{}
+            : std::string(presentation_part.substr(0, slash + 1));
+
+    Internal::opc::RelationshipsManager rels(
+        const_cast<Internal::opc::InMemoryOpcPackage&>(package),
+        std::string(presentation_part));
+
+    for (auto sld_id :
+         doc.document_element().child("p:sldIdLst").children("p:sldId")) {
+        auto r_id = sld_id.attribute("r:id").as_string("");
+        if (!*r_id) continue;
+        auto rel = rels.get_relationship(r_id);
+        if (!rel) continue;
+        result.push_back(rel->target.starts_with("/")
+                             ? rel->target.substr(1)
+                             : base + rel->target);
+    }
+    return result;
+}
+
+void DocumentProperties::refresh_statistics(
+    const Internal::opc::InMemoryOpcPackage& package,
+    std::string_view presentation_part) {
+    int slides = 0;
+    int hidden = 0;
+    int notes = 0;
+    int paragraphs = 0;
+    int words = 0;
+
+    const auto slide_parts = registered_slide_parts(package, presentation_part);
+
+    for (const auto& name : package.get_part_names()) {
+        const bool is_slide =
+            std::find(slide_parts.begin(), slide_parts.end(), name) !=
+            slide_parts.end();
+        const bool is_notes = name.starts_with("ppt/notesSlides/notesSlide") &&
+                              name.ends_with(".xml");
+        if (!is_slide && !is_notes) continue;
+
+        if (is_slide) ++slides;
+        if (is_notes) ++notes;
+
+        auto content = package.get_part(name);
+        if (!content) continue;
+
+        pugi::xml_document doc;
+        if (!doc.load_buffer(content->data(), content->size())) continue;
+
+        // A hidden slide carries show="0" on p:sld; the attribute defaults to
+        // true and is normally absent.
+        if (is_slide) {
+            auto show = doc.document_element().attribute("show");
+            if (show && !show.as_bool(true)) ++hidden;
+        }
+
+        // Count what the file actually says, so the two serialisers cannot
+        // disagree with docProps about the same deck.
+        for (auto node : doc.select_nodes("//a:p")) {
+            (void)node;
+            ++paragraphs;
+        }
+        for (auto node : doc.select_nodes("//a:t")) {
+            words += count_words(node.node().text().as_string());
+        }
+    }
+
+    slides_count_ = slides;
+    hidden_slides_count_ = hidden;
+    notes_count_ = notes;
+    paragraphs_count_ = paragraphs;
+    words_count_ = words;
+}
+
 void DocumentProperties::save_to_package() {
     // Always create parts when saving so properties set on a new presentation
     // are persisted, not just those loaded from an existing file.
@@ -185,8 +300,8 @@ void DocumentProperties::save_to_package() {
             using CPV = Internal::pptx::CustomPropertyValue;
             if (auto* s = std::any_cast<std::string>(&val)) {
                 custom.set_value(name, CPV{*s});
-            } else if (auto* i = std::any_cast<int32_t>(&val)) {
-                custom.set_value(name, CPV{*i});
+            } else if (auto* i32 = std::any_cast<int32_t>(&val)) {
+                custom.set_value(name, CPV{*i32});
             } else if (auto* i = std::any_cast<int>(&val)) {
                 custom.set_value(name, CPV{static_cast<int32_t>(*i)});
             } else if (auto* d = std::any_cast<double>(&val)) {

@@ -132,10 +132,13 @@ void set_blip_image(pugi::xml_node blip,
     }
 
     // Set the r:embed attribute on the blip element.
-    auto attr = blip.attribute(Internal::pptx::Attributes::kREmbed.c_str());
-    if (!attr) {
-        attr = blip.append_attribute(Internal::pptx::Attributes::kREmbed.c_str());
-    }
+    //
+    // Read under either spelling, but always write the literal prefixed name:
+    // pugixml stores names verbatim, so appending the Clark-notation constant
+    // would put "{uri}embed" in the file and the part would stop being XML.
+    auto attr = blip.attribute("r:embed");
+    if (!attr) attr = blip.attribute(Internal::pptx::Attributes::kREmbed.c_str());
+    if (!attr) attr = blip.append_attribute("r:embed");
     attr.set_value(embed_id.c_str());
 
     slide_part.save();

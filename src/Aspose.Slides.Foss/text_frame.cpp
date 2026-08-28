@@ -192,6 +192,12 @@ void TextFrame::init_internal(pugi::xml_node txbody_element,
     impl_->slide = parent_slide;
     impl_->parent_shape = parent_shape;
     impl_->paragraphs.init_internal(txbody_element, slide_part, parent_slide);
+    // Without this the frame's own formatting has no XML behind it, so on a
+    // deck opened from a file every anchoring, margin and wrap setting was
+    // accepted, read back, and never written.
+    impl_->format.init_internal(txbody_element, [slide_part]() {
+        if (slide_part) slide_part->save();
+    });
 }
 
 } // namespace Aspose::Slides::Foss

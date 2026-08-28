@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Aspose Pty Ltd
+#
+# Every action below is pinned to a commit SHA rather than to a tag. A tag is a
+# movable pointer: whoever controls the action's repository can repoint `v4` at
+# any commit, and every workflow that trusts that tag then runs the new code
+# with this repository's checkout and this repository's token. A commit SHA
+# cannot be repointed. The tag the SHA belonged to when it was pinned is in the
+# comment beside it, so a reader can tell which release it is and an updater
+# can offer the next one.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only. Nothing here publishes, tags or comments; a token that cannot
+# write cannot be talked into writing.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # The full suite -- unit, integration and conformance tests -- on every
+  # platform and toolchain the library claims to support, then the package it
+  # installs, then a separate project that consumes that package. A library
+  # that builds but cannot be installed and linked from outside its own build
+  # tree is not shippable, so the consumer step is part of every leg.
+  # ---------------------------------------------------------------------------
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # warnings_as_errors is per leg, not global, because the library is
+        # only known to compile without a single warning under MSVC /W4. The
+        # -Wall -Wextra set that GCC and Clang apply is a different set and has
+        # not been brought to zero, and a switch that turns a warning nobody
+        # has looked at into a red build teaches people to ignore red builds.
+        # Each leg moves to ON once its warning count is zero.
+        include:
+          - name: Linux GCC (Ubuntu 22.04)
+            os: ubuntu-22.04
+            cc: gcc
+            cxx: g++
+            warnings_as_errors: "OFF"
+          - name: Linux Clang (Ubuntu 22.04)
+            os: ubuntu-22.04
+            cc: clang
+            cxx: clang++
+            warnings_as_errors: "OFF"
+          - name: Linux GCC (Ubuntu 24.04)
+            os: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            warnings_as_errors: "OFF"
+          - name: Linux Clang (Ubuntu 24.04)
+            os: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            warnings_as_errors: "OFF"
+          - name: macOS AppleClang (arm64)
+            os: macos-14
+            warnings_as_errors: "OFF"
+          - name: Windows MSVC (windows-2022)
+            os: windows-2022
+            warnings_as_errors: "ON"
+          - name: Windows MSVC (windows-2025)
+            os: windows-2025
+            warnings_as_errors: "ON"
+
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # An explicit interpreter on all three operating systems, so the
+      # out-of-process conformance checks below run the same Python everywhere.
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the independent reader
+        run: python -m pip install --disable-pip-version-check python-pptx
+
+      # Recorded in the log because the matrix names an image, not a compiler
+      # version: the image decides which compiler "gcc" is, and that changes.
+      #
+      # The compiler is only invoked here when the matrix named one. On the
+      # Windows legs CXX is empty and CMake selects MSVC by itself, while a
+      # bare "c++" on those runners resolves to an unrelated MinGW GCC that is
+      # on PATH and is not what anything here builds with -- printing it would
+      # record the wrong toolchain, which is worse than recording none. The
+      # authoritative line for every leg is CMake's own "The CXX compiler
+      # identification is ..." in the configure step below.
+      - name: Record the toolchain
+        shell: bash
+        run: |
+          cmake --version
+          python --version
+          if [ -n "${CXX:-}" ]; then
+            "$CXX" --version
+          elif [ "$RUNNER_OS" != "Windows" ]; then
+            c++ --version
+          fi
+
+      # The install prefix is given at install time, not here, and it comes
+      # from github.workspace rather than $PWD: on the Windows runners this
+      # step runs in Git bash, where $PWD is a POSIX path that CMake would
+      # resolve against the current drive root and quietly install somewhere
+      # nobody looks.
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON \
+            -DASPOSE_SLIDES_FOSS_WARNINGS_AS_ERRORS=${{ matrix.warnings_as_errors }}
+
+      # --config is what a multi-configuration generator (Visual Studio) reads
+      # and CMAKE_BUILD_TYPE is what the single-configuration ones read. Passing
+      # both is how one command line serves every generator in the matrix.
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      # The whole suite in one run: unit tests, integration tests and the
+      # conformance tests that assert on the bytes of the saved package.
+      # ASPOSE_SLIDES_FOSS_CONFORMANCE_OUT makes each conformance test leave a
+      # copy of every file it wrote, which the next step checks from outside.
+      #
+      # --no-tests=error because ctest exits 0 when it finds no tests at all, so
+      # a configure that quietly stopped building the suite would report success
+      # having run nothing. The flag has existed since CMake 3.20, this
+      # project's documented minimum, so it costs no compatibility.
+      - name: Test
+        shell: bash
+        env:
+          ASPOSE_SLIDES_FOSS_CONFORMANCE_OUT: ${{ github.workspace }}/conformance-corpus
+        run: ctest --test-dir build --build-config Release --output-on-failure --no-tests=error --parallel 4
+
+      # An independent implementation of the package rules plus a third-party
+      # reader. --require-python-pptx turns "python-pptx is not installed" from
+      # a skip into a failure: a check that silently does not run is not a check.
+      #
+      # --min-files applies the same rule to the corpus itself. Without it, a
+      # conformance suite that stopped saving most of what it writes would still
+      # be reported as fully checked, because every file that did arrive passes.
+      # Raise the number whenever conformance tests that save a file are added.
+      - name: Validate the produced packages out of process
+        shell: bash
+        run: |
+          python tests/conformance/validate.py conformance-corpus --require-python-pptx --min-files 92
+
+      - name: Install
+        run: cmake --install build --config Release --prefix "${{ github.workspace }}/install"
+
+      # The acceptance test for the packaging work: a project that has never
+      # seen this source tree, given nothing but the install prefix.
+      - name: Build and run a consumer of the installed package
+        shell: bash
+        run: |
+          cmake -S examples/consumer -B build-consumer \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install"
+          cmake --build build-consumer --config Release
+          CONSUMER=$(find build-consumer -type f \( -name consumer_example -o -name consumer_example.exe \) | head -1)
+          echo "consumer binary: $CONSUMER"
+          "$CONSUMER" consumer-output.pptx
+          python tests/conformance/validate.py consumer-output.pptx --require-python-pptx
+
+      - name: Upload the installed package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: install-tree-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          path: install/
+          if-no-files-found: error
+
+      # The dependency list is generated by the build itself from the same
+      # variables that drive the dependency resolution, so it cannot describe a
+      # set of dependencies this build did not use.
+      - name: Upload the software bill of materials
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sbom-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          path: build/aspose-slides-foss-cpp.cdx.json
+          if-no-files-found: error
+
+      - name: Upload the conformance corpus
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: conformance-corpus-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          path: conformance-corpus/
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # AddressSanitizer.
+  #
+  # A use-after-free usually returns whatever the allocator left behind, so the
+  # same defect crashes on one machine and returns plausible values on another.
+  # Under ASan it becomes a deterministic, located failure. Its own job because
+  # it roughly doubles the run time.
+  # ---------------------------------------------------------------------------
+  sanitizer:
+    name: AddressSanitizer (Linux Clang)
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang
+      CXX: clang++
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # BUILD_TESTS is ON by default, but this job exists only to run the suite
+      # under the sanitizer, so it asks for the suite explicitly rather than
+      # inheriting a default that a later change could flip.
+      - name: Configure
+        run: |
+          cmake -S . -B build-asan \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON \
+            -DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON
+
+      - name: Build
+        run: cmake --build build-asan --parallel 4
+
+      # --no-tests=error: a sanitizer job that finds no tests would otherwise
+      # pass, reporting a clean run of nothing at all.
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+        run: ctest --test-dir build-asan --output-on-failure --no-tests=error --parallel 4
+
+  # ---------------------------------------------------------------------------
+  # The oldest CMake the project says it supports.
+  #
+  # Runner images carry a recent CMake, so nothing else in this workflow can
+  # fail when a new construct creeps into CMakeLists.txt that the documented
+  # minimum does not understand. This job builds with exactly that minimum, so
+  # the number in cmake_minimum_required and in README.md is a tested claim
+  # rather than an aspiration.
+  # ---------------------------------------------------------------------------
+  cmake-floor:
+    name: Minimum supported CMake
+    runs-on: ubuntu-22.04
+    env:
+      # The last patch release of the 3.20 series -- the minimum
+      # cmake_minimum_required() and README.md both name.
+      CMAKE_FLOOR_VERSION: 3.20.6
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Fetch the minimum supported CMake
+        run: |
+          curl -fsSL -o cmake-floor.tar.gz \
+            "https://github.com/Kitware/CMake/releases/download/v${CMAKE_FLOOR_VERSION}/cmake-${CMAKE_FLOOR_VERSION}-linux-x86_64.tar.gz"
+          mkdir -p cmake-floor
+          tar -xzf cmake-floor.tar.gz -C cmake-floor --strip-components=1
+          echo "$PWD/cmake-floor/bin" >> "$GITHUB_PATH"
+
+      - name: Record the toolchain
+        run: cmake --version
+
+      # --no-tests=error is itself a 3.20 feature, so this job is also the proof
+      # that the flag the other two jobs rely on exists at the documented floor.
+      - name: Configure, build and test
+        run: |
+          cmake -S . -B build-floor \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON
+          cmake --build build-floor --parallel 4
+          ctest --test-dir build-floor --output-on-failure --no-tests=error --parallel 4

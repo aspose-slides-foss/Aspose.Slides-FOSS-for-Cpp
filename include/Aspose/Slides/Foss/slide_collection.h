@@ -88,9 +88,14 @@ public:
                                                std::size_t count) override;
 
     /// Adds an empty slide with the given layout to the end.
+    ///
+    /// On a deck opened from a file this creates the slide part, its
+    /// relationship and its `<p:sldId>` entry, so the slide is in the package
+    /// that is saved next — not only in this collection.
     Slide& add_empty_slide(ILayoutSlide* layout) override;
 
     /// Inserts an empty slide with the given layout at the specified index.
+    /// See add_empty_slide().
     Slide& insert_empty_slide(std::size_t index, ILayoutSlide* layout) override;
 
     /// Removes the given slide from the collection.
@@ -133,6 +138,23 @@ public:
     /// @param index Position to insert at. -1 means append at end.
     /// @return Reference to the newly created slide.
     Slide& add_empty_slide_internal(ILayoutSlide* layout, std::ptrdiff_t index = -1);
+
+    /// Take a slide out of the package: its `<p:sldId>`, its relationship,
+    /// its part, that part's relationships and its content-type override.
+    /// A no-op for a presentation that has no package behind it yet.
+    void remove_slide_from_package(const Slide* slide);
+
+    /// Resolve a relationship target from presentation.xml to a part name.
+    [[nodiscard]] std::string resolve_presentation_target(
+        std::string_view target) const;
+
+    /// Add a slide to this collection and nowhere else.
+    ///
+    /// The path for a presentation that has no package behind it yet; its
+    /// slides are serialised from the object model at save time.
+    /// @param index Position to insert at. -1 means append at end.
+    Slide& add_empty_slide_in_memory(ILayoutSlide* layout,
+                                     std::ptrdiff_t index);
 
     /// Internal implementation for cloning a slide at OPC level.
     /// @param source_slide The slide to clone.

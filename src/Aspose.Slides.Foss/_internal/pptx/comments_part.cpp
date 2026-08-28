@@ -22,6 +22,10 @@ static const std::string kCmTag = "p:cm";
 static const std::string kCmLstTag = "p:cmLst";
 static const std::string kPosTag = "p:pos";
 static const std::string kTextTag = "p:text";
+static const std::string kExtLstTag = "p:extLst";
+static const std::string kExtTag = "p:ext";
+static const std::string kThreadingInfoTag = "p15:threadingInfo";
+static const std::string kParentCmTag = "p15:parentCm";
 
 // ---------------------------------------------------------------------------
 // dt_to_str / str_to_dt
@@ -112,23 +116,60 @@ void CommentData::set_dt_str(std::string_view value) {
     node_.attribute("dt").set_value(std::string(value).c_str());
 }
 
-std::optional<int32_t> CommentData::parent_cm_id() const {
-    auto attr = node_.attribute("parentCmId");
-    if (attr.empty()) return std::nullopt;
-    return attr.as_int();
-}
+namespace {
 
-void CommentData::set_parent_cm_id(std::optional<int32_t> value) {
-    if (!value.has_value()) {
-        node_.remove_attribute("parentCmId");
-    } else {
-        auto attr = node_.attribute("parentCmId");
-        if (attr.empty()) {
-            node_.append_attribute("parentCmId") = *value;
-        } else {
-            attr.set_value(*value);
+/// Find the `<p:ext>` under @p cm that carries the threading extension.
+pugi::xml_node find_threading_ext(pugi::xml_node cm) {
+    auto ext_lst = cm.child(kExtLstTag.c_str());
+    if (!ext_lst) return {};
+    for (auto ext : ext_lst.children(kExtTag.c_str())) {
+        if (std::string_view(ext.attribute("uri").as_string()) ==
+            kThreadingInfoUri) {
+            return ext;
         }
     }
+    return {};
+}
+
+void write_threading_info(pugi::xml_node cm,
+                          std::optional<ParentCommentRef> parent) {
+    auto ext = find_threading_ext(cm);
+    if (!ext) {
+        // p:extLst is the last child of CT_Comment, so appending is correct.
+        auto ext_lst = cm.child(kExtLstTag.c_str());
+        if (!ext_lst) ext_lst = cm.append_child(kExtLstTag.c_str());
+        ext = ext_lst.append_child(kExtTag.c_str());
+        ext.append_attribute("uri") = std::string(kThreadingInfoUri).c_str();
+    }
+
+    while (auto child = ext.first_child()) ext.remove_child(child);
+    auto info = ext.append_child(kThreadingInfoTag.c_str());
+    // The prefix has to be declared on the element that uses it: this part is
+    // assembled as text and pugixml does not track namespaces.
+    info.append_attribute("xmlns:p15") = std::string(kP15Namespace).c_str();
+    info.append_attribute("timeZoneBias") = 0;
+    if (parent.has_value()) {
+        auto parent_cm = info.append_child(kParentCmTag.c_str());
+        parent_cm.append_attribute("authorId") = parent->author_id;
+        parent_cm.append_attribute("idx") = parent->idx;
+    }
+}
+
+} // namespace
+
+std::optional<ParentCommentRef> CommentData::parent_comment() const {
+    auto ext = find_threading_ext(node_);
+    if (!ext) return std::nullopt;
+    auto info = ext.child(kThreadingInfoTag.c_str());
+    if (!info) return std::nullopt;
+    auto parent_cm = info.child(kParentCmTag.c_str());
+    if (!parent_cm) return std::nullopt;
+    return ParentCommentRef{parent_cm.attribute("authorId").as_int(),
+                            parent_cm.attribute("idx").as_int()};
+}
+
+void CommentData::set_parent_comment(std::optional<ParentCommentRef> value) {
+    write_threading_info(node_, value);
 }
 
 std::string CommentData::text() const {
@@ -262,14 +303,11 @@ std::optional<CommentData> CommentsPart::find_comment_by_idx_all(
 CommentData CommentsPart::add_comment(int32_t author_id, int32_t idx,
                                        std::string_view text, double pos_x,
                                        double pos_y, std::string_view dt_str,
-                                       std::optional<int32_t> parent_idx) {
+                                       std::optional<ParentCommentRef> parent) {
     auto elem = root_.append_child(kCmTag.c_str());
     elem.append_attribute("authorId") = author_id;
     elem.append_attribute("dt") = std::string(dt_str).c_str();
     elem.append_attribute("idx") = idx;
-    if (parent_idx.has_value()) {
-        elem.append_attribute("parentCmId") = *parent_idx;
-    }
 
     auto pos = elem.append_child(kPosTag.c_str());
     pos.append_attribute("x") = static_cast<int64_t>(std::round(pos_x * kCmToEmu));
@@ -277,6 +315,10 @@ CommentData CommentsPart::add_comment(int32_t author_id, int32_t idx,
 
     auto text_node = elem.append_child(kTextTag.c_str());
     text_node.text().set(std::string(text).c_str());
+
+    // A reply is threaded through the extension list; a top-level comment
+    // still gets the extension, matching what PowerPoint itself writes.
+    write_threading_info(elem, parent);
 
     return CommentData(elem);
 }
@@ -285,7 +327,7 @@ CommentData CommentsPart::insert_comment(int32_t index, int32_t author_id,
                                           int32_t idx, std::string_view text,
                                           double pos_x, double pos_y,
                                           std::string_view dt_str,
-                                          std::optional<int32_t> parent_idx) {
+                                          std::optional<ParentCommentRef> parent) {
     auto all_cm = cm_nodes();
 
     // Build the element by first adding, then moving if needed
@@ -293,9 +335,6 @@ CommentData CommentsPart::insert_comment(int32_t index, int32_t author_id,
     elem.append_attribute("authorId") = author_id;
     elem.append_attribute("dt") = std::string(dt_str).c_str();
     elem.append_attribute("idx") = idx;
-    if (parent_idx.has_value()) {
-        elem.append_attribute("parentCmId") = *parent_idx;
-    }
 
     auto pos = elem.append_child(kPosTag.c_str());
     pos.append_attribute("x") = static_cast<int64_t>(std::round(pos_x * kCmToEmu));
@@ -303,6 +342,8 @@ CommentData CommentsPart::insert_comment(int32_t index, int32_t author_id,
 
     auto text_node = elem.append_child(kTextTag.c_str());
     text_node.text().set(std::string(text).c_str());
+
+    write_threading_info(elem, parent);
 
     // Move to correct position if needed
     if (index < static_cast<int32_t>(all_cm.size())) {

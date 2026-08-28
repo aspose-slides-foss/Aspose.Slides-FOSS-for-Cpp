@@ -13,6 +13,7 @@
 
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
 #include <Aspose/Slides/Foss/drawing/color.h>
+#include <Aspose/Slides/Foss/fill_format.h>
 #include <Aspose/Slides/Foss/simple_color_format.h>
 #include <Aspose/Slides/Foss/effects/blur.h>
 #include <Aspose/Slides/Foss/effects/fill_overlay.h>
@@ -306,6 +307,9 @@ void EffectFormat::disable_soft_edge_effect() {
 
 namespace {
 
+/// OOXML stores percentages as value * 1000 (100% = 100000).
+constexpr int kPercentUnit = 1000;
+
 /// Convert a Color to a 6-character hex string (RRGGBB).
 std::string color_to_hex(const Drawing::Color& c) {
     std::ostringstream oss;
@@ -348,7 +352,20 @@ void EffectFormat::serialize_to_xml(pugi::xml_node sp_pr) const {
         node.append_attribute("grow") = blur_->grow() ? "1" : "0";
     }
 
-    // fillOverlay: skip for now (not tested)
+    if (fill_overlay_) {
+        auto node = effect_lst.append_child("a:fillOverlay");
+        // @blend is required by CT_FillOverlayEffect, and so is exactly one
+        // fill child. FillFormat writes nothing for NOT_DEFINED, so a fill
+        // that was never configured becomes an explicit a:noFill.
+        node.append_attribute("blend") =
+            Effects::fill_blend_mode_to_ooxml(fill_overlay_->blend());
+        const auto& fill =
+            static_cast<const FillFormat&>(fill_overlay_->fill_format());
+        fill.serialize_to_xml(node);
+        if (!node.first_child()) {
+            node.append_child("a:noFill");
+        }
+    }
 
     if (glow_) {
         auto node = effect_lst.append_child("a:glow");
@@ -358,7 +375,16 @@ void EffectFormat::serialize_to_xml(pugi::xml_node sp_pr) const {
         write_color_element(node, glow_->color());
     }
 
-    // innerShdw: skip for now (not tested)
+    if (inner_shadow_) {
+        auto node = effect_lst.append_child("a:innerShdw");
+        node.append_attribute("blurRad") = static_cast<long long>(std::round(
+            inner_shadow_->blur_radius() * Internal::pptx::kEmuPerPoint));
+        node.append_attribute("dist") = static_cast<long long>(std::round(
+            inner_shadow_->distance() * Internal::pptx::kEmuPerPoint));
+        node.append_attribute("dir") = static_cast<long long>(std::round(
+            inner_shadow_->direction() * Internal::pptx::kRotationUnit));
+        write_color_element(node, inner_shadow_->shadow_color());
+    }
 
     if (outer_shadow_) {
         auto node = effect_lst.append_child("a:outerShdw");
@@ -374,8 +400,55 @@ void EffectFormat::serialize_to_xml(pugi::xml_node sp_pr) const {
         write_color_element(node, outer_shadow_->shadow_color());
     }
 
-    // prstShdw: skip for now (not tested)
-    // reflection: skip for now (not tested)
+    if (preset_shadow_) {
+        auto node = effect_lst.append_child("a:prstShdw");
+        // @prst is required by CT_PresetShadowEffect.
+        node.append_attribute("prst") =
+            Effects::preset_shadow_type_to_ooxml(preset_shadow_->preset());
+        node.append_attribute("dist") = static_cast<long long>(std::round(
+            preset_shadow_->distance() * Internal::pptx::kEmuPerPoint));
+        node.append_attribute("dir") = static_cast<long long>(std::round(
+            preset_shadow_->direction() * Internal::pptx::kRotationUnit));
+        write_color_element(node, preset_shadow_->shadow_color());
+    }
+
+    if (reflection_) {
+        auto node = effect_lst.append_child("a:reflection");
+        // Units, in the order CT_ReflectionEffect declares them: percentages
+        // are per-mille-of-a-percent (100% = 100000), angles are 60000ths of a
+        // degree, blurRad and dist are EMU.
+        node.append_attribute("blurRad") = static_cast<long long>(std::round(
+            reflection_->blur_radius() * Internal::pptx::kEmuPerPoint));
+        node.append_attribute("stA") = static_cast<long long>(std::round(
+            reflection_->start_reflection_opacity() * kPercentUnit));
+        node.append_attribute("stPos") = static_cast<long long>(std::round(
+            reflection_->start_pos_alpha() * kPercentUnit));
+        node.append_attribute("endA") = static_cast<long long>(std::round(
+            reflection_->end_reflection_opacity() * kPercentUnit));
+        node.append_attribute("endPos") = static_cast<long long>(std::round(
+            reflection_->end_pos_alpha() * kPercentUnit));
+        node.append_attribute("dist") = static_cast<long long>(std::round(
+            reflection_->distance() * Internal::pptx::kEmuPerPoint));
+        node.append_attribute("dir") = static_cast<long long>(std::round(
+            reflection_->direction() * Internal::pptx::kRotationUnit));
+        node.append_attribute("fadeDir") = static_cast<long long>(std::round(
+            reflection_->fade_direction() * Internal::pptx::kRotationUnit));
+        node.append_attribute("sx") = static_cast<long long>(std::round(
+            reflection_->scale_horizontal() * kPercentUnit));
+        node.append_attribute("sy") = static_cast<long long>(std::round(
+            reflection_->scale_vertical() * kPercentUnit));
+        node.append_attribute("kx") = static_cast<long long>(std::round(
+            reflection_->skew_horizontal() * Internal::pptx::kRotationUnit));
+        node.append_attribute("ky") = static_cast<long long>(std::round(
+            reflection_->skew_vertical() * Internal::pptx::kRotationUnit));
+        // @algn is omitted when undefined so the schema default ("b") applies.
+        if (const char* algn =
+                Effects::rectangle_alignment_to_ooxml(reflection_->rectangle_align())) {
+            node.append_attribute("algn") = algn;
+        }
+        node.append_attribute("rotWithShape") =
+            reflection_->rotate_shadow_with_shape() ? "1" : "0";
+    }
 
     if (soft_edge_) {
         auto node = effect_lst.append_child("a:softEdge");

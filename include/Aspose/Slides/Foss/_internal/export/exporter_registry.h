@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -46,14 +47,22 @@ public:
     /// Calls T::get_supported_formats() to discover which format strings
     /// the exporter handles, then maps each to a factory that creates T.
     ///
+    /// An exporter that handles several formats needs to know which one it was
+    /// asked for, so when T is constructible from the format string it is
+    /// constructed with it. Otherwise T is default-constructed.
+    ///
     /// @tparam T Exporter class derived from ExporterBase.
     ///           Must have a static get_supported_formats() method.
     template <typename T>
         requires std::is_base_of_v<ExporterBase, T>
     static void register_exporter() {
         for (const auto& format : T::get_supported_formats()) {
-            exporters_[format] = []() -> std::unique_ptr<ExporterBase> {
-                return std::make_unique<T>();
+            exporters()[format] = [format]() -> std::unique_ptr<ExporterBase> {
+                if constexpr (std::is_constructible_v<T, std::string_view>) {
+                    return std::make_unique<T>(std::string_view(format));
+                } else {
+                    return std::make_unique<T>();
+                }
             };
         }
     }
@@ -93,7 +102,14 @@ public:
     static void clear();
 
 private:
-    static std::unordered_map<std::string, ExporterFactory> exporters_;
+    /// The format -> factory map.
+    ///
+    /// A function-local static, not a class static: exporters register
+    /// themselves from namespace-scope initialisers in their own translation
+    /// units, and the order in which those run relative to a class static in
+    /// this one is unspecified. Constructing the map on first use makes the
+    /// order irrelevant.
+    static std::unordered_map<std::string, ExporterFactory>& exporters();
 };
 
 } // namespace Aspose::Slides::Foss::Internal::export_

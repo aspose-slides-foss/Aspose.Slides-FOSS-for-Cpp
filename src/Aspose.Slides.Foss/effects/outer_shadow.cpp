@@ -3,6 +3,8 @@
 
 #include <Aspose/Slides/Foss/effects/outer_shadow.h>
 #include <Aspose/Slides/Foss/_internal/pptx/constants.h>
+#include <Aspose/Slides/Foss/_internal/pptx/effect_color.h>
+#include <Aspose/Slides/Foss/_internal/pptx/xml_attribute_utils.h>
 
 #include <cmath>
 #include <string_view>
@@ -100,6 +102,17 @@ void OuterShadow::init_internal(pugi::xml_node element,
     if (auto attr = element_.attribute("sy"); attr) {
         scale_vertical_ = static_cast<double>(attr.as_llong(100000)) / kPercentUnit;
     }
+    // CT_OuterShadowEffect requires exactly one colour child; a freshly created
+    // element has none, and PowerPoint refuses a file that leaves it off.
+    if (element_) {
+        if (!Internal::pptx::read_effect_color(element_, shadow_color_)) {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+        }
+        shadow_color_.set_on_changed([this] {
+            Internal::pptx::write_effect_color(element_, shadow_color_);
+            if (save_callback_) save_callback_();
+        });
+    }
 }
 
 void OuterShadow::save() {
@@ -125,7 +138,7 @@ double OuterShadow::scale_vertical() const noexcept { return scale_vertical_; }
 void OuterShadow::set_blur_radius(double value) noexcept {
     blur_radius_ = value;
     if (element_) {
-        element_.attribute("blurRad").set_value(
+        Internal::pptx::set_attribute(element_, "blurRad",
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
@@ -134,7 +147,7 @@ void OuterShadow::set_blur_radius(double value) noexcept {
 void OuterShadow::set_direction(double value) noexcept {
     direction_ = value;
     if (element_) {
-        element_.attribute("dir").set_value(
+        Internal::pptx::set_attribute(element_, "dir",
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -143,7 +156,7 @@ void OuterShadow::set_direction(double value) noexcept {
 void OuterShadow::set_distance(double value) noexcept {
     distance_ = value;
     if (element_) {
-        element_.attribute("dist").set_value(
+        Internal::pptx::set_attribute(element_, "dist",
             static_cast<long long>(std::round(value * Internal::pptx::kEmuPerPoint)));
     }
     if (save_callback_) save_callback_();
@@ -153,7 +166,7 @@ void OuterShadow::set_rectangle_align(RectangleAlignment value) noexcept {
     rectangle_align_ = value;
     if (element_) {
         if (auto* ooxml_val = alignment_to_ooxml(value); ooxml_val) {
-            element_.attribute("algn").set_value(ooxml_val);
+            Internal::pptx::set_attribute(element_, "algn", ooxml_val);
         }
     }
     if (save_callback_) save_callback_();
@@ -162,7 +175,7 @@ void OuterShadow::set_rectangle_align(RectangleAlignment value) noexcept {
 void OuterShadow::set_skew_horizontal(double value) noexcept {
     skew_horizontal_ = value;
     if (element_) {
-        element_.attribute("kx").set_value(
+        Internal::pptx::set_attribute(element_, "kx",
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -171,7 +184,7 @@ void OuterShadow::set_skew_horizontal(double value) noexcept {
 void OuterShadow::set_skew_vertical(double value) noexcept {
     skew_vertical_ = value;
     if (element_) {
-        element_.attribute("ky").set_value(
+        Internal::pptx::set_attribute(element_, "ky",
             static_cast<long long>(std::round(value * Internal::pptx::kRotationUnit)));
     }
     if (save_callback_) save_callback_();
@@ -180,7 +193,7 @@ void OuterShadow::set_skew_vertical(double value) noexcept {
 void OuterShadow::set_rotate_shadow_with_shape(bool value) noexcept {
     rotate_shadow_with_shape_ = value;
     if (element_) {
-        element_.attribute("rotWithShape").set_value(value ? "1" : "0");
+        Internal::pptx::set_attribute(element_, "rotWithShape", value ? "1" : "0");
     }
     if (save_callback_) save_callback_();
 }
@@ -188,7 +201,7 @@ void OuterShadow::set_rotate_shadow_with_shape(bool value) noexcept {
 void OuterShadow::set_scale_horizontal(double value) noexcept {
     scale_horizontal_ = value;
     if (element_) {
-        element_.attribute("sx").set_value(
+        Internal::pptx::set_attribute(element_, "sx",
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();
@@ -197,7 +210,7 @@ void OuterShadow::set_scale_horizontal(double value) noexcept {
 void OuterShadow::set_scale_vertical(double value) noexcept {
     scale_vertical_ = value;
     if (element_) {
-        element_.attribute("sy").set_value(
+        Internal::pptx::set_attribute(element_, "sy",
             static_cast<long long>(std::round(value * kPercentUnit)));
     }
     if (save_callback_) save_callback_();

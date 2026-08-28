@@ -18,12 +18,6 @@
 
 namespace Aspose::Slides::Foss {
 
-/// Insert a child element into a `<a:pPr>` node at the correct OOXML schema position.
-/// @param ppr The `<a:pPr>` element node.
-/// @param tag The qualified child element tag (e.g., "a:lnSpc").
-/// @return The newly inserted child node.
-pugi::xml_node ppr_insert_child(pugi::xml_node ppr, std::string_view tag);
-
 /// Represents paragraph formatting properties.
 class ParagraphFormat final : public IParagraphFormat {
 public:
@@ -33,10 +27,16 @@ public:
     [[nodiscard]] IBulletFormat& bullet() override { return bullet_; }
     [[nodiscard]] const IBulletFormat& bullet() const override { return bullet_; }
 
-    /// Returns the paragraph depth.
-    [[nodiscard]] int depth() const override { return depth_; }
+    // Every property below is backed by `<a:pPr>` once this object is bound to
+    // one: the getter reads the element and the setter writes it, so a deck
+    // opened from a file records what the caller asked for. An unbound object
+    // — the from-scratch path, which serialises through serialize_ppr() at
+    // save time — answers from its members instead.
+
+    /// Returns the paragraph depth (`<a:pPr>` @lvl).
+    [[nodiscard]] int depth() const override;
     /// Sets the paragraph depth.
-    void set_depth(int value) override { depth_ = value; }
+    void set_depth(int value) override;
 
     /// Returns the text alignment.
     [[nodiscard]] TextAlignment alignment() const override;
@@ -44,52 +44,52 @@ public:
     void set_alignment(TextAlignment value) override;
 
     /// Returns the space within the paragraph (positive=%, negative=points).
-    [[nodiscard]] double space_within() const override { return space_within_; }
-    void set_space_within(double value) override { space_within_ = value; }
+    [[nodiscard]] double space_within() const override;
+    void set_space_within(double value) override;
 
     /// Returns the space before the paragraph.
-    [[nodiscard]] double space_before() const override { return space_before_; }
-    void set_space_before(double value) override { space_before_ = value; }
+    [[nodiscard]] double space_before() const override;
+    void set_space_before(double value) override;
 
     /// Returns the space after the paragraph.
-    [[nodiscard]] double space_after() const override { return space_after_; }
-    void set_space_after(double value) override { space_after_ = value; }
+    [[nodiscard]] double space_after() const override;
+    void set_space_after(double value) override;
 
     /// Returns whether east asian line break is enabled.
-    [[nodiscard]] NullableBool east_asian_line_break() const override { return east_asian_line_break_; }
-    void set_east_asian_line_break(NullableBool value) override { east_asian_line_break_ = value; }
+    [[nodiscard]] NullableBool east_asian_line_break() const override;
+    void set_east_asian_line_break(NullableBool value) override;
 
     /// Returns whether text is right-to-left.
-    [[nodiscard]] NullableBool right_to_left() const override { return right_to_left_; }
-    void set_right_to_left(NullableBool value) override { right_to_left_ = value; }
+    [[nodiscard]] NullableBool right_to_left() const override;
+    void set_right_to_left(NullableBool value) override;
 
     /// Returns whether latin line break is enabled.
-    [[nodiscard]] NullableBool latin_line_break() const override { return latin_line_break_; }
-    void set_latin_line_break(NullableBool value) override { latin_line_break_ = value; }
+    [[nodiscard]] NullableBool latin_line_break() const override;
+    void set_latin_line_break(NullableBool value) override;
 
     /// Returns whether hanging punctuation is enabled.
-    [[nodiscard]] NullableBool hanging_punctuation() const override { return hanging_punctuation_; }
-    void set_hanging_punctuation(NullableBool value) override { hanging_punctuation_ = value; }
+    [[nodiscard]] NullableBool hanging_punctuation() const override;
+    void set_hanging_punctuation(NullableBool value) override;
 
     /// Returns the left margin in points. NaN = undefined.
-    [[nodiscard]] double margin_left() const override { return margin_left_; }
-    void set_margin_left(double value) override { margin_left_ = value; }
+    [[nodiscard]] double margin_left() const override;
+    void set_margin_left(double value) override;
 
     /// Returns the right margin in points. NaN = undefined.
-    [[nodiscard]] double margin_right() const override { return margin_right_; }
-    void set_margin_right(double value) override { margin_right_ = value; }
+    [[nodiscard]] double margin_right() const override;
+    void set_margin_right(double value) override;
 
     /// Returns the indent in points. NaN = undefined.
-    [[nodiscard]] double indent() const override { return indent_; }
-    void set_indent(double value) override { indent_ = value; }
+    [[nodiscard]] double indent() const override;
+    void set_indent(double value) override;
 
     /// Returns the default tab size in points. NaN = undefined.
-    [[nodiscard]] double default_tab_size() const override { return default_tab_size_; }
-    void set_default_tab_size(double value) override { default_tab_size_ = value; }
+    [[nodiscard]] double default_tab_size() const override;
+    void set_default_tab_size(double value) override;
 
     /// Returns the font alignment.
-    [[nodiscard]] FontAlignment font_alignment() const override { return font_alignment_; }
-    void set_font_alignment(FontAlignment value) override { font_alignment_ = value; }
+    [[nodiscard]] FontAlignment font_alignment() const override;
+    void set_font_alignment(FontAlignment value) override;
 
     /// Returns default portion format of a paragraph. Read-only.
     [[nodiscard]] PortionFormat& default_portion_format() override { return default_portion_format_; }
@@ -98,10 +98,17 @@ public:
     // -- XML-backed internal API ------------------------------------------
 
     /// Initialize from an existing `<a:pPr>` XML node.
-    /// @param ppr_element The `<a:pPr>` pugixml node.
+    /// @param ppr_element The `<a:pPr>` pugixml node, which may be empty.
     /// @param save_callback Callback to persist changes (e.g., SlidePart::save).
+    /// @param p_element The owning `<a:p>`. Most paragraphs in a real deck
+    ///        carry no `<a:pPr>` at all, so without the parent there is
+    ///        nowhere to put the first property that gets set, and every
+    ///        setter is a silent no-op. Given it, the element is created on
+    ///        the first write and not before — an empty `<a:pPr>` added to
+    ///        every paragraph on load would change files nobody edited.
     void init_internal(pugi::xml_node ppr_element,
-                       std::function<void()> save_callback);
+                       std::function<void()> save_callback,
+                       pugi::xml_node p_element = {});
 
     /// Persist changes via the save callback.
     void save();
@@ -127,6 +134,10 @@ public:
     void set_emu_attr(std::string_view attr, double value);
 
 private:
+    /// The backing `<a:pPr>`, created under the owning `<a:p>` if it is not
+    /// there yet. Empty when this object has no XML behind it at all.
+    pugi::xml_node ensure_ppr();
+
     BulletFormat bullet_;
     TextAlignment alignment_ = TextAlignment::NOT_DEFINED;
     double space_within_ = std::numeric_limits<double>::quiet_NaN();
@@ -145,6 +156,7 @@ private:
     PortionFormat default_portion_format_;
 
     pugi::xml_node ppr_element_;
+    pugi::xml_node p_element_;
     std::function<void()> save_callback_;
 };
 
