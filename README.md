@@ -1,6 +1,64 @@
 # Aspose.Slides FOSS for C++
 
-The official open-source C++ library by Aspose.Slides for creating, reading, and editing PowerPoint (`.pptx`) presentations.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](CMakeLists.txt) [![Contributors](https://img.shields.io/github/contributors/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp.svg)](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/graphs/contributors)
+
+[![Aspose.Slides FOSS for C++](https://products.aspose.org/media/slides/cpp/banner-readme.png)](https://products.aspose.org/slides/cpp/)
+
+The official open-source C++ library by Aspose.Slides for creating, reading, and editing PowerPoint
+(`.pptx`) presentations. It is MIT-licensed and builds the Office Open XML package itself, so it
+needs no Microsoft PowerPoint installation, no COM interop and no other proprietary runtime — only
+pugixml and miniz.
+
+## Navigation
+
+- [At a Glance](#at-a-glance)
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Usage Examples](#usage-examples)
+- [Building](#building)
+- [Installing, and using the installed package](#installing-and-using-the-installed-package)
+- [Limitations](#limitations)
+- [Continuous integration](#continuous-integration)
+- [Packaging](#packaging)
+- [Contributing, and reporting things](#contributing-and-reporting-things)
+- [Documentation and resources](#documentation-and-resources)
+- [License](#license)
+
+---
+
+## At a Glance
+
+```mermaid
+flowchart TD
+  subgraph StartingPoints["Starting Points"]
+    direction TB
+    i1["A new presentation - Presentation(), one blank slide"]
+    i2["An existing .pptx presentation, opened by file path"]
+  end
+  PRODUCT["Aspose.Slides FOSS for C++"]
+  subgraph Capabilities["Core Capabilities"]
+    direction LR
+    subgraph capl[" "]
+      direction TB
+      c1["Presentation and slide creation and editing"]
+      c2["Shape creation (AutoShape, Table, Connector, PictureFrame)"]
+      c3["Text formatting (TextFrame, Paragraph, Portion)"]
+      c4["Fill, line, and 3D shape styling"]
+    end
+    subgraph capr[" "]
+      direction TB
+      c5["Visual effects (shadow, glow, blur, reflection)"]
+      c6["Document properties (core, app, custom)"]
+      c7["Speaker notes and comments"]
+      c8["Image embedding"]
+    end
+  end
+  subgraph Outputs["Outputs"]
+    direction TB
+    o1["A presentation written to a file path as .pptx, .pptm, .ppsx, .ppsm, .potx or .potm"]
+  end
+  StartingPoints --> PRODUCT --> Capabilities --> Outputs
+```
 
 ---
 
@@ -522,13 +580,22 @@ this changelog survived a green suite for exactly that reason.
 
 ---
 
-## Links
+## Documentation and resources
 
-- [GitHub Repository](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp)
-- [Issue Tracker](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/issues)
+- **[Getting started guide](https://docs.aspose.org/slides/cpp/)** — installation, walkthroughs and
+  feature guides for this library.
+- **[How-to guides and FAQ](https://kb.aspose.org/slides/cpp/)** — task-focused answers to common
+  PowerPoint-processing questions.
+- **[API reference](https://reference.aspose.org/slides/cpp/)** — the browsable reference for the
+  public API surface.
+- [GitHub repository](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp)
+- [Issue tracker](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/issues) — bug
+  reports and feature requests for this library.
 
 ---
 
 ## License
 
-[MIT License](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/blob/main/LICENSE)
+This project is licensed under the [MIT License](LICENSE), which permits use, copying,
+modification, distribution, sublicensing and commercial use provided the copyright and permission
+notice are retained. The software is provided without warranty.
