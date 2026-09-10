@@ -31,6 +31,7 @@ What it contains, and why:
 |---|---|
 | Platforms | **x64** and **Win32** |
 | Configurations | **Debug** and **Release** |
+| Toolset | built with **v143** (Visual Studio 2022), the **oldest** toolset supported — never the newest available, because a static archive links only into a consumer whose toolset is the same or newer |
 | C runtime | `/MD` and `/MDd`, passed explicitly rather than inherited from CMake's default |
 | Libraries | `aspose_slides_foss.lib`, **`pugixml.lib`** and **`miniz.lib`**, per platform and configuration |
 | Headers | ours plus **pugixml's**, shipped once — the two platforms' header trees are compared and must be identical |

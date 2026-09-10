@@ -27,6 +27,18 @@ WHAT IS DELIBERATE HERE
   * The headers are staged from one platform's install tree, after asserting the
     two trees are identical. Shipping them twice would double a 260-file tree for
     no reason; shipping one of them without checking would be an assumption.
+
+  * THE TOOLSET MATTERS, and the published package is built with the OLDEST one
+    it supports rather than whatever is newest. A static archive carries object
+    code compiled against a particular MSVC standard library, and part of that
+    library is separately compiled: symbols like
+    __std_find_first_not_of_trivial_pos_1 exist in newer toolsets and not in
+    older ones. Objects built by a newer toolset therefore fail to link into an
+    older consumer's project, with LNK2019 naming a symbol from inside the
+    standard library -- an error that leads the reader to the STL rather than
+    here. The release workflow runs this script on the windows-2022 image (v143)
+    for that reason. Running it on a newer Visual Studio produces a package that
+    works only for people who have also upgraded.
 """
 import argparse
 import filecmp

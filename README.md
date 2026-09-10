@@ -417,10 +417,17 @@ Install-Package Aspose.Slides.Cpp.FOSS
 ```
 
 It carries **x64 and Win32**, **Debug and Release**, built against the DLL C
-runtime (`/MD` and `/MDd`) with **MSVC v142 or newer**, and it needs no other
-configuration: the include path and the libraries arrive from the package. Set
-your project's C++ language standard to `stdcpp20` or later, because these headers
-are C++20.
+runtime (`/MD` and `/MDd`), and it needs no other configuration: the include path
+and the libraries arrive from the package. Two requirements, both checked by the
+package rather than left to fail obscurely:
+
+- **Visual Studio 2022 or newer (`v143`+).** These are static archives compiled
+  against a particular MSVC standard library, part of which is itself compiled
+  rather than header-only. An older toolset links against an older standard
+  library that lacks symbols these objects reference, and fails with `LNK2019` on
+  a name from inside the standard library. The package is therefore built with the
+  *oldest* toolset it supports, never the newest available.
+- **C++ language standard `stdcpp20` or later**, because these headers are C++20.
 
 Three libraries are linked, not one — `aspose_slides_foss.lib`, `pugixml.lib` and
 `miniz.lib` — and pugixml's headers are on your include path as well as ours. A

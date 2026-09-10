@@ -59,8 +59,10 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
     <UseDebugLibraries Condition="'$(Configuration)' != 'Debug'">false</UseDebugLibraries>
-    <!-- Left to the toolset the build is run with, so this project exercises
-         whatever Visual Studio is installed rather than pinning one. -->
+    <!-- v143 by default: the oldest toolset the package supports, and therefore
+         the one worth exercising, since a newer consumer links a superset of the
+         standard library and an older one is refused by the package outright.
+         Overridable on the command line so a specific toolset can be tested. -->
     <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>

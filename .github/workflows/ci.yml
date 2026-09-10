@@ -189,7 +189,13 @@ jobs:
       - name: Build and run a consumer of the installed package
         shell: bash
         run: |
-          cmake -S examples/consumer -B build-consumer \
+          arch=""
+          if [ -n "${{ matrix.cmake_arch }}" ]; then arch="-A ${{ matrix.cmake_arch }}"; fi
+          # The consumer must be configured for the SAME architecture as the install tree it is
+          # given. Without this it defaults to x64 on every Windows leg, and on the Win32 leg
+          # find_package() then fails against a 32-bit package -- reported as a missing package
+          # rather than as a mismatched one.
+          cmake -S examples/consumer -B build-consumer $arch \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install"
           cmake --build build-consumer --config Release
@@ -316,7 +322,19 @@ jobs:
   # ---------------------------------------------------------------------------
   package:
     name: NuGet package (x64 and Win32, Debug and Release)
-    runs-on: windows-2025
+    # windows-2022, deliberately, and NOT the newest image available.
+    #
+    # A static library carries object code compiled against a particular MSVC standard library, and
+    # some of the STL lives in a separately-compiled part: symbols like
+    # __std_find_first_not_of_trivial_pos_1 and __std_regex_transform_primary_char. Those resolve
+    # for a consumer whose toolset is the same as the build's or newer, and DO NOT resolve for one
+    # that is older -- the consumer's msvcp lib simply has no such symbol.
+    #
+    # So a package must be built with the OLDEST toolset it claims to support, not the newest.
+    # Built on the newest image, it links only for people who have also upgraded, and the failure
+    # they see is LNK2019 on a symbol from inside the standard library, which names nothing that
+    # would lead them here. Measured: built on windows-2025 and consumed with v143, exactly that.
+    runs-on: windows-2022
 
     steps:
       - name: Check out

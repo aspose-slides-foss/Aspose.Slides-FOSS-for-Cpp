@@ -69,12 +69,20 @@
            Text="Aspose.Slides.Cpp.FOSS: platform '$(Platform)' is not supported. This package carries x64 and Win32 static libraries built with MSVC." />
 
     <!-- Only the toolsets known to be too old are rejected, so a toolset newer
-         than this file is not blocked by a list written before it existed. The
-         library is C++20; v141 (Visual Studio 2017) and earlier cannot compile
-         its headers, and the failure would otherwise be hundreds of syntax
-         errors inside our headers, which reads as our bug. -->
-    <Error Condition="'$(PlatformToolset)' == 'v140' Or '$(PlatformToolset)' == 'v141' Or '$(PlatformToolset)' == 'v120' Or '$(PlatformToolset)' == 'v110' Or '$(PlatformToolset)' == 'v100'"
-           Text="Aspose.Slides.Cpp.FOSS: platform toolset '$(PlatformToolset)' does not support C++20. Use v142 (Visual Studio 2019 16.11 or later) or newer." />
+         than this file is not blocked by a list written before it existed.
+
+         Two separate reasons to require v143, and the second is the binding one.
+         The library is C++20, which rules out v141 (Visual Studio 2017) and
+         earlier on the headers alone. But these archives are also COMPILED
+         against a particular MSVC standard library, and part of the STL is
+         separately compiled: an older toolset's msvcp does not contain symbols
+         such as __std_find_first_not_of_trivial_pos_1, so linking these objects
+         into a v142 project fails with LNK2019 naming a symbol from inside the
+         standard library. That error leads nobody here, so it is caught up
+         front instead. The package is built with v143 for exactly this reason:
+         the oldest toolset it supports, never the newest available. -->
+    <Error Condition="'$(PlatformToolset)' == 'v142' Or '$(PlatformToolset)' == 'v141' Or '$(PlatformToolset)' == 'v140' Or '$(PlatformToolset)' == 'v120' Or '$(PlatformToolset)' == 'v110' Or '$(PlatformToolset)' == 'v100'"
+           Text="Aspose.Slides.Cpp.FOSS: platform toolset '$(PlatformToolset)' is older than the one these libraries were built with. Use v143 (Visual Studio 2022) or newer. An older toolset links with an older standard library, which lacks symbols this package's objects reference." />
 
     <Warning Condition="'$(Configuration)' != 'Debug' And '$(Configuration)' != 'Release'"
              Text="Aspose.Slides.Cpp.FOSS: configuration '$(Configuration)' is neither Debug nor Release, so the Release libraries were linked. If this configuration uses the debug C runtime (/MDd), link the Debug ones instead or expect LNK2038." />

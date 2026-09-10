@@ -33,7 +33,7 @@ your project; nothing else is needed.
 |---|---|
 | Platforms | **x64** and **Win32** |
 | Configurations | **Debug** and **Release** |
-| Toolset | MSVC, **v142 or newer** — the headers are C++20 |
+| Toolset | MSVC, **v143 or newer** (Visual Studio 2022 or later) |
 | C runtime | `/MD` and `/MDd` (the DLL runtime, which is the Visual Studio default) |
 | Linkage | static archives — `aspose_slides_foss.lib`, plus `pugixml.lib` and `miniz.lib` |
 
@@ -43,6 +43,13 @@ is why the package carries three libraries rather than one.
 
 Set your project's **C++ Language Standard** to `stdcpp20` or later. If you leave it at the default,
 compilation fails inside these headers, which looks like a fault in the library and is not.
+
+**Visual Studio 2022 or newer is a hard requirement, not a recommendation.** These are static
+libraries, compiled against a particular MSVC standard library, and part of that library is itself
+compiled rather than header-only. An older toolset links against an older standard library that does
+not contain the symbols these objects reference, and the link fails with `LNK2019` naming something
+like `__std_find_first_not_of_trivial_pos_1` — an error that points at the standard library and not
+at this package. The package checks your toolset and says so plainly instead.
 
 For Linux and macOS, build from source or use the vcpkg port or the Conan recipe — see the
 repository.
