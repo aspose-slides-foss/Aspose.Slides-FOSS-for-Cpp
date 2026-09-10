@@ -15,6 +15,25 @@ output/
 *.dll
 *.exe
 
+# MSBuild output from examples/nuget-consumer.
+#
+# CMake keeps everything under build/, which the rules above cover. MSBuild does
+# not: a .vcxproj writes its intermediates beside the project file and its NuGet
+# restore output into obj/, both inside the source tree, whatever --OutDir says.
+# So none of the patterns above reach them, and `git add -A` after building the
+# example picks up tlogs, pdbs and project.assets.json.
+examples/nuget-consumer/obj/
+examples/nuget-consumer/x64/
+examples/nuget-consumer/Win32/
+examples/nuget-consumer/Debug/
+examples/nuget-consumer/Release/
+*.tlog
+*.pdb
+*.ilk
+*.idb
+*.recipe
+*.exp
+
 # IDEs
 .idea/
 .vscode/
