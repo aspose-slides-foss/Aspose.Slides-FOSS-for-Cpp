@@ -33,10 +33,12 @@ body:
     attributes:
       label: Version
       description: >
-        The commit SHA you built. `git rev-parse HEAD` prints it. Nothing has been released, so a
-        version number on its own does not identify a build — `ASPOSE_SLIDES_FOSS_VERSION_STRING`
-        is the same for every commit.
-      placeholder: "e.g. 032afe9"
+        If you installed the NuGet package, its version, plus your platform and configuration —
+        x64 or Win32, Debug or Release — because those are four different binaries.
+        If you built from source, the commit SHA instead: `git rev-parse HEAD` prints it, and it is
+        the only thing that identifies a source build, since
+        `ASPOSE_SLIDES_FOSS_VERSION_STRING` is the same for every commit between releases.
+      placeholder: "e.g. 26.9.0 x64 Release, or 032afe9 built from source"
     validations:
       required: true
 

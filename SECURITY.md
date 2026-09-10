@@ -2,18 +2,20 @@
 
 ## Supported versions
 
-Nothing has been released. No tag exists in this repository, there is no vcpkg port and no Conan
-package in any registry, and the drafts under `packaging/` are not submittable. Every consumer today
-builds from source, so the only code that receives security fixes is the current default branch.
+Security fixes go into the latest release. There is one release line and no long-term-support
+branch: an older version is superseded rather than patched, so the supported answer is always to move
+to the newest.
 
 | Version | Supported |
 |---|---|
-| The current default branch | yes |
-| Anything built from an older commit | no — rebuild from the default branch |
-| The `packaging/` drafts | not published anywhere; nothing to fix in a registry |
+| `26.9.0` | yes |
+| Older releases | no — upgrade to the latest |
+| The current default branch | yes — fixes land here first |
+| The `packaging/vcpkg` and `packaging/conan` drafts | not submitted to any registry; nothing to fix there |
 
-When the first release is tagged this table will list released versions instead, and this sentence
-will be replaced by a support window.
+Note that the NuGet package and a build from source are the same code but not the same binaries: the
+package ships prebuilt MSVC static libraries, so a fix reaches package users only in the next release,
+while a source build picks it up from the default branch immediately.
 
 Note that the version this project reports — `ASPOSE_SLIDES_FOSS_VERSION_STRING` in the generated
 `<Aspose/Slides/Foss/version.h>`, currently `26.9.0` — comes from `CMakeLists.txt` and does **not**

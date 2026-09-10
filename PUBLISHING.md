@@ -17,17 +17,25 @@ long-lived exists to leak, rotate, or forget to revoke.
 > and is attached to the release, and the workflow proves it is the built package plus a signature
 > and nothing else before pushing it. Step 5 below is where that happens.
 
-## Before the first release: two things this repository cannot do for itself
+## The two things this repository cannot do for itself
 
-Neither is code, and neither can be done from here.
+Neither is code, and neither can be done from here. **Both were put in place on 2026-09-10**, before
+the first release; they are recorded because they are invisible from the tree and because each fails
+in a way that names something other than itself.
 
-| Missing | Who | What happens without it |
+| Thing | Who | What happens without it |
 |---|---|---|
 | A **trusted-publishing policy** on nuget.org for `Aspose.Slides.Cpp.FOSS`, bound to this repository, the workflow file `nuget-release.yml` and the environment `nuget.org` | a member of the `Aspose` organisation on nuget.org | The OIDC exchange fails. The error names the token, not the missing policy. |
 | The **`NUGET_USER`** environment secret on the `nuget.org` environment, holding the nuget.org *profile name* — not an email address, which fails the exchange | a repository admin | `NuGet/login` receives an empty user and the exchange fails. |
 
-The `nuget.org` environment itself already exists here, with `yury-knml` as required reviewer and a
-deployment policy admitting only `v*` tags. It holds no secret yet.
+The `nuget.org` environment carries `yury-knml` as required reviewer and a deployment policy admitting
+only `v*` tags.
+
+**Neither is verifiable from here, and that is the point of writing them down.** nuget.org exposes no
+API for reading a trusted-publishing policy back, and a GitHub secret can be listed by name but never
+read. So the first push is the first proof that the policy matches — which is exactly why the guards
+before it are worth their weight, and why a failed exchange should be read as "check the policy"
+rather than "the token is broken".
 
 ## Cutting a release
 
