@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "aspose-slides-foss",
-  "version": "0.1.0",
+  "version": "26.9.0",
   "description": [
     "C++ library for creating, reading and editing PowerPoint .pptx presentations.",
     "Reads and writes Office Open XML presentation packages: slides, shapes, text and its formatting, fills, lines, effects, 3-D, tables, pictures, notes, comments and document properties. Unknown parts are preserved verbatim on save."

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Imported automatically by NuGet.
+
+  THE FILE NAME IS THE CONTRACT. NuGet imports build/native/<PackageId>.targets and
+  nothing else. A file one directory deeper, or spelled with different casing, is
+  carried in the package and never read: the consumer gets no include path and no
+  library, and the failure surfaces as "cannot open source file" in their code
+  rather than as anything pointing here. The sibling Aspose.Cells.Cpp.FOSS package
+  ships its targets at build/native/Aspose.Cells.Cpp.FOSS/aspose.cells.cpp.foss.targets,
+  which is exactly that mistake, and is why this file's name and location are
+  asserted by packaging/nuget/check_package.py rather than trusted.
+
+  What this file does: adds the header directory, links the three static archives
+  for the consumer's platform and configuration, and refuses the combinations that
+  would otherwise fail as a wall of compiler or linker errors with no cause named.
+-->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <AsposeSlidesFossRoot>$(MSBuildThisFileDirectory)</AsposeSlidesFossRoot>
+
+    <!-- The directory names used inside the package, chosen to match the sibling
+         FOSS package rather than MSBuild's own spelling of the platform. -->
+    <AsposeSlidesFossPlatformDir Condition="'$(Platform)' == 'x64'">win_x86_64</AsposeSlidesFossPlatformDir>
+    <AsposeSlidesFossPlatformDir Condition="'$(Platform)' == 'Win32'">win_x86</AsposeSlidesFossPlatformDir>
+
+    <!-- Debug is matched exactly; everything else takes the Release archives.
+         A project whose configuration is called neither Debug nor Release is
+         warned below rather than silently linked against one of the two, because
+         the wrong choice here is a C runtime mismatch (LNK2038) and not a
+         missing file. -->
+    <AsposeSlidesFossConfigDir Condition="'$(Configuration)' == 'Debug'">Debug</AsposeSlidesFossConfigDir>
+    <AsposeSlidesFossConfigDir Condition="'$(AsposeSlidesFossConfigDir)' == ''">Release</AsposeSlidesFossConfigDir>
+
+    <AsposeSlidesFossLibDir>$(AsposeSlidesFossRoot)lib\$(AsposeSlidesFossPlatformDir)\$(AsposeSlidesFossConfigDir)\</AsposeSlidesFossLibDir>
+  </PropertyGroup>
+
+  <!-- Guarded on the platform directory rather than on $(Platform) directly: if
+       the platform is one this package does not carry, nothing is added to the
+       consumer's build at all and the check below reports why. Adding a link
+       input that does not exist produces a linker error naming a path inside a
+       NuGet cache directory, which tells the reader nothing. -->
+  <ItemDefinitionGroup Condition="'$(AsposeSlidesFossPlatformDir)' != ''">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(AsposeSlidesFossRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- C4250, "inherits <member> via dominance", is not a defect and is not the consumer's to
+           fix: this library's public interface uses virtual inheritance, and dominance is precisely
+           the rule the language defines for choosing the override. The library's own build turns it
+           off for the same reason, but that setting is PRIVATE and does not travel with headers, so
+           a consumer compiling our headers sees it. Measured: it fires from
+           global_layout_slide_collection.h in a bare consumer project. Suppressed here, in the
+           package that ships the headers that provoke it. The commercial Aspose.Slides.Cpp package
+           does the same, for 4250 among others. -->
+      <DisableSpecificWarnings>4250;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <!-- All three, in this order. aspose_slides_foss is a static archive, so it
+           carries no dependency information: pugixml and miniz have to be named
+           by whoever links it. pugixml is also in the public headers, which is
+           why its headers travel in this package too. -->
+      <AdditionalDependencies>$(AsposeSlidesFossLibDir)aspose_slides_foss.lib;$(AsposeSlidesFossLibDir)pugixml.lib;$(AsposeSlidesFossLibDir)miniz.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <Target Name="AsposeSlidesFossCheck" BeforeTargets="PrepareForBuild">
+
+    <Error Condition="'$(Platform)' != 'x64' And '$(Platform)' != 'Win32'"
+           Text="Aspose.Slides.Cpp.FOSS: platform '$(Platform)' is not supported. This package carries x64 and Win32 static libraries built with MSVC." />
+
+    <!-- Only the toolsets known to be too old are rejected, so a toolset newer
+         than this file is not blocked by a list written before it existed. The
+         library is C++20; v141 (Visual Studio 2017) and earlier cannot compile
+         its headers, and the failure would otherwise be hundreds of syntax
+         errors inside our headers, which reads as our bug. -->
+    <Error Condition="'$(PlatformToolset)' == 'v140' Or '$(PlatformToolset)' == 'v141' Or '$(PlatformToolset)' == 'v120' Or '$(PlatformToolset)' == 'v110' Or '$(PlatformToolset)' == 'v100'"
+           Text="Aspose.Slides.Cpp.FOSS: platform toolset '$(PlatformToolset)' does not support C++20. Use v142 (Visual Studio 2019 16.11 or later) or newer." />
+
+    <Warning Condition="'$(Configuration)' != 'Debug' And '$(Configuration)' != 'Release'"
+             Text="Aspose.Slides.Cpp.FOSS: configuration '$(Configuration)' is neither Debug nor Release, so the Release libraries were linked. If this configuration uses the debug C runtime (/MDd), link the Debug ones instead or expect LNK2038." />
+
+    <!-- The libraries are built against the DLL C runtime: /MD in Release and
+         /MDd in Debug, which is what a project from the Visual Studio wizard
+         uses. A static-CRT consumer links but hits LNK2038 on _ITERATOR_DEBUG_LEVEL
+         or RuntimeLibrary, and that error names the CRT rather than this package. -->
+    <Warning Condition="'%(ClCompile.RuntimeLibrary)' == 'MultiThreaded' Or '%(ClCompile.RuntimeLibrary)' == 'MultiThreadedDebug'"
+             Text="Aspose.Slides.Cpp.FOSS: this project uses the static C runtime (/MT or /MTd). These libraries are built with /MD and /MDd, so the link will fail with LNK2038. Build the library from source with CMAKE_MSVC_RUNTIME_LIBRARY set if you need a static-CRT build." />
+
+    <Warning Condition="'%(ClCompile.LanguageStandard)' != '' And '%(ClCompile.LanguageStandard)' != 'stdcpp20' And '%(ClCompile.LanguageStandard)' != 'stdcpplatest'"
+             Text="Aspose.Slides.Cpp.FOSS: this project sets LanguageStandard '%(ClCompile.LanguageStandard)'. The public headers are C++20; set &lt;LanguageStandard&gt;stdcpp20&lt;/LanguageStandard&gt; or compilation will fail inside them." />
+  </Target>
+
+</Project>

@@ -16,7 +16,7 @@ When the first release is tagged this table will list released versions instead,
 will be replaced by a support window.
 
 Note that the version this project reports — `ASPOSE_SLIDES_FOSS_VERSION_STRING` in the generated
-`<Aspose/Slides/Foss/version.h>`, currently `0.1.0` — comes from `CMakeLists.txt` and does **not**
+`<Aspose/Slides/Foss/version.h>`, currently `26.9.0` — comes from `CMakeLists.txt` and does **not**
 identify a build. Quote the commit SHA (`git rev-parse HEAD`) in a report.
 
 ## Reporting a vulnerability

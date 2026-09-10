@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(AsposeSlidesFoss
-        VERSION 0.1.0
+        VERSION 26.9.0
         DESCRIPTION "MIT-licensed C++ library for reading, creating and writing PowerPoint .pptx presentations"
         HOMEPAGE_URL "https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp"
         LANGUAGES CXX)
@@ -430,8 +430,12 @@ find_dependency(miniz)")
         "${PROJECT_BINARY_DIR}/AsposeSlidesFossConfig.cmake"
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/AsposeSlidesFoss)
 
-    # SameMinorVersion, not SameMajorVersion: before 1.0 the major number says
-    # nothing, and a 0.x series makes no compatibility promise across minors.
+    # SameMinorVersion, not SameMajorVersion. The version is CalVer -- YY.M.PATCH
+    # -- so the major number is a year and carries no compatibility meaning at
+    # all: 26.9 and 26.4 are six months of API change apart, and SameMajorVersion
+    # would declare them interchangeable. SameMinorVersion makes
+    # find_package(AsposeSlidesFoss 26.9 CONFIG REQUIRED) accept 26.9.x and
+    # reject 26.10, which is the only promise a monthly release train can keep.
     write_basic_package_version_file(
         "${PROJECT_BINARY_DIR}/AsposeSlidesFossConfigVersion.cmake"
         VERSION ${PROJECT_VERSION}

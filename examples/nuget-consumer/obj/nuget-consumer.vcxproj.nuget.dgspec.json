@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\examples\\nuget-consumer\\nuget-consumer.vcxproj": {}
+  },
+  "projects": {
+    "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\examples\\nuget-consumer\\nuget-consumer.vcxproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\examples\\nuget-consumer\\nuget-consumer.vcxproj",
+        "projectName": "nuget-consumer",
+        "projectPath": "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\examples\\nuget-consumer\\nuget-consumer.vcxproj",
+        "packagesPath": "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\build\\consumer-packages",
+        "outputPath": "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\examples\\nuget-consumer\\obj\\",
+        "projectStyle": "PackageReference",
+        "skipContentFileWrite": true,
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\knigi\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "native"
+        ],
+        "sources": {
+          "C:\\bin\\aspose\\git\\aspose-slides-foss\\Aspose.Slides-FOSS-for-Cpp\\build\\nuget-pack\\package": {}
+        },
+        "frameworks": {
+          "native": {
+            "projectReferences": {}
+          }
+        }
+      },
+      "frameworks": {
+        "native": {
+          "dependencies": {
+            "Aspose.Slides.Cpp.FOSS": {
+              "target": "Package",
+              "version": "[26.9.0, )"
+            }
+          }
+        }
+      },
+      "runtimes": {
+        "win": {
+          "#import": []
+        },
+        "win-x64": {
+          "#import": []
+        },
+        "win-x86": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A template, not a manifest. @VERSION@ is substituted by packaging/nuget/pack.py
+  from project(... VERSION ...) in CMakeLists.txt, which is the single place this
+  library's version is written. A literal version here would be a second copy to
+  keep in step, and the copy that goes stale is the one nobody reads.
+-->
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>Aspose.Slides.Cpp.FOSS</id>
+    <version>@VERSION@</version>
+    <title>Aspose.Slides FOSS for C++</title>
+    <authors>Aspose</authors>
+    <owners>Aspose</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">MIT</license>
+    <icon>icon.png</icon>
+    <readme>README.md</readme>
+    <projectUrl>https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp</projectUrl>
+    <description>A free, MIT-licensed C++ library for creating, reading and editing PowerPoint .pptx presentations. It builds the Office Open XML package itself, so it needs no PowerPoint installation, no COM interop and no proprietary runtime. This package carries static libraries for MSVC on Windows: x64 and Win32, Debug and Release. It does not render or convert: there is no PDF, image or HTML export.</description>
+    <releaseNotes>https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/releases/tag/v@VERSION@</releaseNotes>
+    <copyright>Copyright (c) 2026 Aspose Pty Ltd</copyright>
+    <tags>aspose slides powerpoint pptx presentation cpp native msvc static-library ooxml open-xml office</tags>
+    <repository type="git" url="https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp.git" branch="main" commit="@COMMIT@" />
+  </metadata>
+  <files>
+    <file src="icon.png" target="icon.png" />
+    <file src="README.md" target="README.md" />
+    <file src="LICENSE" target="LICENSE" />
+    <file src="THIRD_PARTY_NOTICES" target="THIRD_PARTY_NOTICES" />
+    <file src="build\native\**" target="build\native" />
+  </files>
+</package>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A Visual Studio C++ project that consumes the NuGet package.
+
+  It names the package once, in the PackageReference below, and names nothing
+  else: no include directory, no library, no path. The include path and the three
+  static archives arrive from build/native/Aspose.Slides.Cpp.FOSS.targets, which
+  NuGet imports out of the package automatically.
+
+  Restore it with `msbuild -t:restore` and build it. There is deliberately no
+  <Import> of the package's .targets here: an explicit import would prove that the
+  targets file works while hiding whether NuGet can find it, and its location
+  inside the package is precisely the thing that goes wrong.
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3D7C4F1A-6B2E-4E58-9E0C-7A1F5B8C2D34}</ProjectGuid>
+    <RootNamespace>nugetconsumer</RootNamespace>
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)' == ''">10.0</WindowsTargetPlatformVersion>
+
+    <!-- Both of these are required for a C++ project to restore a PackageReference, and neither is
+         the default. A .vcxproj restores in the legacy style unless RestoreProjectStyle says
+         otherwise, and its target framework moniker then defaults to .NETFramework 4.0 rather than
+         `native`. The failure is a long way from the cause:
+
+           Microsoft.NuGet.targets(198,5): error : Your project does not reference
+           ".NETFramework,Version=v4.0" framework.
+
+         which reads as a fault in the package, since it has no lib/net40 and should not have one,
+         when it is in fact a fault in the consuming project. Measured: that is exactly what this
+         project did before these two lines were added. -->
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <NuGetTargetMoniker>native,Version=v0.0</NuGetTargetMoniker>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries Condition="'$(Configuration)' == 'Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)' != 'Debug'">false</UseDebugLibraries>
+    <!-- Left to the toolset the build is run with, so this project exercises
+         whatever Visual Studio is installed rather than pinning one. -->
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="Exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <!-- The library's headers are C++20. Nothing else here is a requirement of
+           the package; this one is, and the package's .targets warns when it is
+           missing rather than letting the compiler fail inside our headers. -->
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization Condition="'$(Configuration)' == 'Debug'">Disabled</Optimization>
+      <Optimization Condition="'$(Configuration)' != 'Debug'">MaxSpeed</Optimization>
+      <RuntimeLibrary Condition="'$(Configuration)' == 'Debug'">MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeLibrary Condition="'$(Configuration)' != 'Debug'">MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The version is supplied on the command line by the check that runs this
+         project, so the same file tests whichever package was just built:
+             msbuild -t:restore,build -p:AsposeSlidesFossVersion=26.9.0 -->
+    <PackageReference Include="Aspose.Slides.Cpp.FOSS">
+      <Version>$(AsposeSlidesFossVersion)</Version>
+    </PackageReference>
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

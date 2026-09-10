@@ -2,15 +2,16 @@
 
 All notable changes to this project are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The project version
-is the one in `CMakeLists.txt` — currently `0.1.0` — and the compatibility rule the installed CMake
-package enforces is `SameMinorVersion`: before 1.0 the major number promises nothing, so
-`find_package(AsposeSlidesFoss 0.1 CONFIG REQUIRED)` accepts any 0.1.x and rejects 0.2.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+a CalVer version scheme — `YY.M.PATCH`, matching the other language editions of the library. The
+version is the one in `CMakeLists.txt` and is written nowhere else.
 
-No release has been tagged and nothing has been published to any package registry, so everything
-below is unreleased.
+The compatibility rule the installed CMake package enforces is `SameMinorVersion`. The major number
+is a year and carries no compatibility meaning, so `find_package(AsposeSlidesFoss 26.9 CONFIG
+REQUIRED)` accepts any `26.9.x` and rejects `26.10` — the only promise a monthly release train can
+keep.
 
-## [Unreleased]
+## [26.9.0]
 
 This is the first entry. The library existed before it, but it wrote files that were wrong in ways
 its own tests could not see: the writer and the reader shared the misunderstanding, so every getter
@@ -220,10 +221,19 @@ throw, one accessor returns something different, and the CMake target has been r
   oldest version the project claims to support. Actions are pinned to commit SHAs.
 - **`-DASPOSE_SLIDES_FOSS_SANITIZE_ADDRESS=ON`**, and `-DASPOSE_SLIDES_FOSS_WARNINGS_AS_ERRORS=ON`
   for a build that fails on a warning.
+- **A NuGet package, `Aspose.Slides.Cpp.FOSS`**, carrying prebuilt MSVC static libraries: **x64 and
+  Win32, Debug and Release**, built against the DLL C runtime (`/MD` and `/MDd`). It ships
+  `pugixml.lib` and `miniz.lib` beside ours and **pugixml's headers as well as ours**, because a
+  static archive carries no dependency information and pugixml is in this library's public interface.
+  `packaging/nuget/pack.py` builds all four and packs them; `packaging/nuget/check_package.py`
+  asserts on the result; and `examples/nuget-consumer/` is a Visual Studio project that names the
+  package and no paths at all, so it fails to compile if NuGet cannot find the package's `.targets`
+  where it must be. Set your project's C++ language standard to `stdcpp20` or later — the headers are
+  C++20, and the package warns rather than letting the compiler fail inside them.
 - **Draft vcpkg and Conan packaging**, under `packaging/`, kept beside the code so a build-system
   change that breaks packaging shows up in the same pull request. **Neither is submittable and
-  neither has been submitted**: no release has been tagged, so the source reference and the archive
-  checksum both registries need do not exist. `packaging/README.md` states the blockers.
+  neither has been submitted**: the source archive checksum both registries need can only be computed
+  from the archive a real tag produces. `packaging/README.md` states the blockers.
 - **Community documentation** — this changelog, `CONTRIBUTING.md`, `SECURITY.md`,
   `CODE_OF_CONDUCT.md`, issue forms and a pull request template.
 
@@ -243,4 +253,4 @@ the ones most likely to surprise someone, because the API accepts the call:
 - **No charts, SmartArt, OLE objects, mathematical text, animations, transitions, VBA macros or
   digital signatures**, and no rendering or conversion of any kind.
 
-[Unreleased]: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/commits/main
+[26.9.0]: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/releases/tag/v26.9.0

@@ -1,6 +1,6 @@
 # Aspose.Slides FOSS for C++
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](CMakeLists.txt) [![Contributors](https://img.shields.io/github/contributors/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp.svg)](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/graphs/contributors)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![C++](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](CMakeLists.txt) [![NuGet](https://img.shields.io/nuget/v/Aspose.Slides.Cpp.FOSS.svg)](https://www.nuget.org/packages/Aspose.Slides.Cpp.FOSS/) [![Contributors](https://img.shields.io/github/contributors/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp.svg)](https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/graphs/contributors)
 
 [![Aspose.Slides FOSS for C++](https://products.aspose.org/media/slides/cpp/banner-readme.png)](https://products.aspose.org/slides/cpp/)
 
@@ -403,9 +403,32 @@ cmake -B build -DCMAKE_PREFIX_PATH=/your/prefix
 fresh install on every CI run, so the instructions above are checked rather
 than asserted.
 
-Version compatibility is `SameMinorVersion`: before 1.0 the major number
-carries no promise, so `find_package(AsposeSlidesFoss 0.1 CONFIG REQUIRED)`
-accepts any 0.1.x and rejects 0.2.
+Version compatibility is `SameMinorVersion`. The version is CalVer — `YY.M.PATCH`
+— so the major number is a year and carries no compatibility meaning at all:
+`find_package(AsposeSlidesFoss 26.9 CONFIG REQUIRED)` accepts any `26.9.x` and
+rejects `26.10`, which is the only promise a monthly release train can keep.
+
+### Installing from NuGet on Windows
+
+On Windows with MSVC there is a prebuilt package, so nothing has to be compiled:
+
+```powershell
+Install-Package Aspose.Slides.Cpp.FOSS
+```
+
+It carries **x64 and Win32**, **Debug and Release**, built against the DLL C
+runtime (`/MD` and `/MDd`) with **MSVC v142 or newer**, and it needs no other
+configuration: the include path and the libraries arrive from the package. Set
+your project's C++ language standard to `stdcpp20` or later, because these headers
+are C++20.
+
+Three libraries are linked, not one — `aspose_slides_foss.lib`, `pugixml.lib` and
+`miniz.lib` — and pugixml's headers are on your include path as well as ours. A
+static archive carries no record of what it needs, and pugixml is in this library's
+public interface; see [Public headers and pugixml](#public-headers-and-pugixml).
+
+For Linux and macOS, build from source as above. `packaging/README.md` describes
+the package for each registry and what state it is in.
 
 ### Public headers and pugixml
 

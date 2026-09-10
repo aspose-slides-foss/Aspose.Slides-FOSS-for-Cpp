@@ -16,6 +16,9 @@ on:
     branches: ["**"]
   pull_request:
   workflow_dispatch:
+  # Called by nuget-release.yml at the commit being released, so that the package it publishes is
+  # the one these jobs built and asserted on rather than a rebuild nothing inspected.
+  workflow_call:
 
 # Read-only. Nothing here publishes, tags or comments; a token that cannot
 # write cannot be talked into writing.
@@ -70,11 +73,21 @@ jobs:
           - name: macOS AppleClang (arm64)
             os: macos-14
             warnings_as_errors: "OFF"
-          - name: Windows MSVC (windows-2022)
+          - name: Windows MSVC x64 (windows-2022)
             os: windows-2022
+            cmake_arch: x64
             warnings_as_errors: "ON"
-          - name: Windows MSVC (windows-2025)
+          - name: Windows MSVC x64 (windows-2025)
             os: windows-2025
+            cmake_arch: x64
+            warnings_as_errors: "ON"
+          # 32-bit. The NuGet package ships Win32 static libraries, so this leg is what makes that
+          # half of the package a tested claim rather than a build nobody has ever run. Its whole
+          # value is in the places where 32-bit differs: pointer width, and every size_t that gets
+          # narrowed on the way into an int.
+          - name: Windows MSVC Win32 (windows-2025)
+            os: windows-2025
+            cmake_arch: Win32
             warnings_as_errors: "ON"
 
     env:
@@ -121,10 +134,15 @@ jobs:
       # step runs in Git bash, where $PWD is a POSIX path that CMake would
       # resolve against the current drive root and quietly install somewhere
       # nobody looks.
+      # `-A` selects the target architecture and is understood only by the Visual Studio generators,
+      # so it is added on the Windows legs and nowhere else: passing it to the Makefile generator
+      # that CMake picks on Linux and macOS is an error, not an ignored flag.
       - name: Configure
         shell: bash
         run: |
-          cmake -S . -B build \
+          arch=""
+          if [ -n "${{ matrix.cmake_arch }}" ]; then arch="-A ${{ matrix.cmake_arch }}"; fi
+          cmake -S . -B build $arch \
             -DCMAKE_BUILD_TYPE=Release \
             -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON \
             -DASPOSE_SLIDES_FOSS_WARNINGS_AS_ERRORS=${{ matrix.warnings_as_errors }}
@@ -180,10 +198,13 @@ jobs:
           "$CONSUMER" consumer-output.pptx
           python tests/conformance/validate.py consumer-output.pptx --require-python-pptx
 
+      # The architecture is part of every artefact name below. Two legs now share an image and a
+      # compiler and differ only in architecture, and upload-artifact rejects a duplicate name —
+      # so leaving it out would fail the run rather than merely confuse the reader.
       - name: Upload the installed package
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: install-tree-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          name: install-tree-${{ matrix.os }}-${{ matrix.cc || 'default' }}-${{ matrix.cmake_arch || 'native' }}
           path: install/
           if-no-files-found: error
 
@@ -193,7 +214,7 @@ jobs:
       - name: Upload the software bill of materials
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: sbom-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          name: sbom-${{ matrix.os }}-${{ matrix.cc || 'default' }}-${{ matrix.cmake_arch || 'native' }}
           path: build/aspose-slides-foss-cpp.cdx.json
           if-no-files-found: error
 
@@ -201,7 +222,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: conformance-corpus-${{ matrix.os }}-${{ matrix.cc || 'default' }}
+          name: conformance-corpus-${{ matrix.os }}-${{ matrix.cc || 'default' }}-${{ matrix.cmake_arch || 'native' }}
           path: conformance-corpus/
           if-no-files-found: warn
 
@@ -283,3 +304,134 @@ jobs:
             -DASPOSE_SLIDES_FOSS_BUILD_TESTS=ON
           cmake --build build-floor --parallel 4
           ctest --test-dir build-floor --output-on-failure --no-tests=error --parallel 4
+
+  # ---------------------------------------------------------------------------
+  # The NuGet package: four MSVC builds -- x64 and Win32, Debug and Release --
+  # assembled into one package, asserted on, and then consumed by a real Visual
+  # Studio project that names the package and no paths at all.
+  #
+  # This job produces the artefact the release workflow publishes. It runs on
+  # every push, not only on a tag, because a packaging break found on the day of
+  # a release is a packaging break found too late.
+  # ---------------------------------------------------------------------------
+  package:
+    name: NuGet package (x64 and Win32, Debug and Release)
+    runs-on: windows-2025
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the independent reader
+        run: python -m pip install --disable-pip-version-check python-pptx
+
+      # A pinned version rather than whatever the runner image happens to carry or
+      # whatever `latest` resolves to today. The packaging tool decides the shape
+      # of the file that gets published; it is not a detail to leave floating.
+      - name: Fetch the NuGet command line
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/nuget.exe" \
+            https://dist.nuget.org/win-x86-commandline/v6.11.0/nuget.exe
+          "$RUNNER_TEMP/nuget.exe" help | head -1
+
+      # From CMakeLists.txt, through the packaging script, so there is one
+      # implementation of "what version is this?" rather than two.
+      - name: Read the version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python packaging/nuget/pack.py --print-version | tr -d '[:space:]')"
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Packaging $version"
+
+      # Four configurations. This is the slow job in the workflow and it is
+      # deliberately not trimmed: the package ships all four, so all four are
+      # built by the thing that produces the package.
+      - name: Pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          python packaging/nuget/pack.py --work build/nuget-pack --nuget "$RUNNER_TEMP/nuget.exe"
+
+      - name: Assert on the package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          python packaging/nuget/check_package.py \
+            "build/nuget-pack/package/Aspose.Slides.Cpp.FOSS.${VERSION}.nupkg" --version "$VERSION"
+
+      # The acceptance test. examples/nuget-consumer names the package and no
+      # include directory, no library and no path -- so if the .targets file is
+      # not at the one location NuGet imports, this step fails to compile, which
+      # is exactly how the mistake would reach a user.
+      #
+      # Three of the four pairs are exercised: both platforms, and both
+      # configurations. Debug and Release are different archives against
+      # different C runtimes, so a check that ran only Release would prove half
+      # the package.
+      - name: Build and run a consumer of the package
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # -requires the C++ TOOLS, not Microsoft.Component.MSBuild. Every Visual Studio instance
+          # has MSBuild; only the ones with the C++ workload have the VC targets a .vcxproj imports.
+          # On a machine carrying more than one instance, asking for MSBuild alone can return one
+          # without C++, and the failure is MSB4019 pointing at a Microsoft.Cpp.Default.props that
+          # does not exist -- which reads as a broken project rather than the wrong Visual Studio.
+          # Measured: that is exactly what happened on the machine this was first run on.
+          vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+          msbuild="$("$vswhere" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild/**/Bin/MSBuild.exe | head -1)"
+          if [ -z "$msbuild" ]; then echo "::error::no Visual Studio instance with the C++ tools"; exit 1; fi
+          echo "msbuild: $msbuild"
+
+          feed="$(pwd)/build/nuget-pack/package"
+          for pair in "x64 Release" "Win32 Release" "x64 Debug"; do
+            set -- $pair
+            plat="$1"; cfg="$2"
+            echo "::group::$plat $cfg"
+            out="$(pwd)/build/consumer-$plat-$cfg/"
+            # Restore and build are SEPARATE invocations, and combining them is not a style
+            # choice. `-t:restore,build` evaluates the project once, before restore has written
+            # the generated import that brings in the package's .targets -- so the build half of
+            # that same invocation compiles without the include path the package provides, and
+            # fails on the first #include. It then appears to work on every later run, because by
+            # then the earlier restore has left the generated file behind. Measured: on a cold
+            # package cache the first pair failed with C1083 and the two after it passed.
+            "$msbuild" examples/nuget-consumer/nuget-consumer.vcxproj \
+              -t:restore \
+              -p:Configuration="$cfg" -p:Platform="$plat" \
+              -p:AsposeSlidesFossVersion="$VERSION" \
+              -p:RestoreSources="$feed" \
+              -p:RestorePackagesPath="$(pwd)/build/consumer-packages" \
+              -verbosity:minimal
+            "$msbuild" examples/nuget-consumer/nuget-consumer.vcxproj \
+              -t:build \
+              -p:Configuration="$cfg" -p:Platform="$plat" \
+              -p:AsposeSlidesFossVersion="$VERSION" \
+              -p:RestorePackagesPath="$(pwd)/build/consumer-packages" \
+              -p:OutDir="$out" \
+              -verbosity:minimal
+            "${out}nuget-consumer.exe" "consumer-$plat-$cfg.pptx"
+            python tests/conformance/validate.py "consumer-$plat-$cfg.pptx" --require-python-pptx
+            echo "::endgroup::"
+          done
+
+      - name: Upload the package
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: nuget-package-${{ steps.version.outputs.version }}
+          path: build/nuget-pack/package/*.nupkg
+          if-no-files-found: error
