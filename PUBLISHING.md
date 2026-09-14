@@ -53,6 +53,12 @@ rather than "the token is broken".
    1. Download `Aspose.Slides.Cpp.FOSS.<version>.nupkg` from the run's artefacts — the built file,
       never a rebuild.
    2. Run the internal signing job with it. It signs and verifies, and publishes nothing.
+      **Two of its parameters must be changed from their defaults, which describe the .NET
+      package**, and the job refuses the upload rather than signing the wrong thing if you forget:
+      `EXPECTED_ID` → `Aspose.Slides.Cpp.FOSS`, and `EXPECTED_ENTRIES` →
+      `build/native/Aspose.Slides.Cpp.FOSS.targets;build/native/lib/win_x86_64/Release/`.
+      `EXPECTED_ENTRIES` is what the job checks the payload against; left at the .NET default it
+      looks for `lib/net8.0/`, which a native package correctly does not have.
    3. Download the signed package from that job.
    4. Create a **draft release** for the tag and attach the signed `.nupkg` to it.
 6. **Approve the deployment.** The publish job takes the signed package from the release, proves it
