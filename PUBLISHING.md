@@ -123,9 +123,21 @@ And on a machine that has never seen the package — which is the only check tha
 most likely to be wrong, NuGet finding the `.targets` inside the package:
 
 ```powershell
-msbuild examples\nuget-consumer\nuget-consumer.vcxproj -t:restore,build ^
+msbuild examples\nuget-consumer\nuget-consumer.vcxproj -t:restore ^
+    -p:Configuration=Release -p:Platform=x64 -p:AsposeSlidesFossVersion=26.9.0
+msbuild examples\nuget-consumer\nuget-consumer.vcxproj -t:build ^
     -p:Configuration=Release -p:Platform=x64 -p:AsposeSlidesFossVersion=26.9.0
 ```
+
+**Restore and build are two invocations on purpose.** MSBuild evaluates the project once per
+invocation, so `-t:restore,build` builds against the evaluation made *before* restore wrote the
+generated import: the package's `.targets` is never read and the build fails on a missing header. It
+then passes on every later run, because by then the import exists — which is what makes the
+single-invocation form read as a flaky consumer rather than as a wrong command.
+
+The consumer also needs **v143 or newer**. Against an older toolset the package's `.targets` stops
+the build with a message naming the reason and the fix; that is deliberate, and the alternative is
+`LNK2019` on a symbol from inside the standard library.
 
 Finally, open the package page and look at it. The icon, the README, the badges and the banner
 either render or they do not, and nuget.org reports a readme it could not render **only to the
@@ -162,4 +174,4 @@ been run**, for this package or for the .NET one.
 
 | Version | Date | Notes |
 |---|---|---|
-| — | — | Nothing has been published yet. |
+| 26.9.0 | 2026-09-14 | First publish, from tag `v26.9.0`. Signed on the internal build agent during the approval pause, as described above. nuget.org adds its own repository signature on ingest, so the published file is the signed file with a larger `.signature.p7s` and no other difference — verified entry by entry after the fact. |

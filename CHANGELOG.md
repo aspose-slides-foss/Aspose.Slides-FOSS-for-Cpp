@@ -11,7 +11,7 @@ is a year and carries no compatibility meaning, so `find_package(AsposeSlidesFos
 REQUIRED)` accepts any `26.9.x` and rejects `26.10` — the only promise a monthly release train can
 keep.
 
-## [26.9.0]
+## [26.9.0] - 2026-09-14
 
 This is the first entry. The library existed before it, but it wrote files that were wrong in ways
 its own tests could not see: the writer and the reader shared the misunderstanding, so every getter

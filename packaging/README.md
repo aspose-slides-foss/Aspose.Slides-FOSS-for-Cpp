@@ -79,15 +79,15 @@ so in the places that matter:
 
 | Blocker | Where it bites |
 |---|---|
-| No release has been tagged | `vcpkg_from_github(REF ...)` and Conan's `source()` both need an immutable tag. This repository has **no tags at all**, so both currently point at one that does not exist. |
-| No source archive checksum | `SHA512` in `portfile.cmake` is a placeholder. It can only be computed from the archive GitHub produces for a real tag — so it is blocked behind the row above. |
+| ~~No release has been tagged~~ | **Cleared 2026-09-14.** `vcpkg_from_github(REF ...)` and Conan's `source()` both need an immutable tag, and `v26.9.0` now exists for them to point at. |
+| No source archive checksum | `SHA512` in `portfile.cmake` is still a placeholder. It became computable when the tag appeared, from the source archive GitHub produces for `v26.9.0`, and is deliberately left unfilled: nothing in this repository verifies it, and a wrong value fails at a consumer's first install rather than here. |
 | Registry submission is a pull request against someone else's repository | vcpkg ports go to `microsoft/vcpkg`, Conan recipes to `conan-io/conan-center-index`. Each has its own review, its own CI and its own naming and versioning rules, and neither accepts a package from an untagged repository. |
 
 The NuGet package above is not blocked by any of these, which is why it is real
 and these are drafts: it is built from the working tree and published from this
 repository, so it needs no tag in someone else's registry and no third-party
-review. A tag will exist once a release is cut, and at that point the first two
-rows can be closed — in that order.
+review. The tag now exists, so the first row is closed and the second is merely
+undone; the third is unchanged, and it is the one that costs someone else's time.
 
 ### What they assume about the build
 
