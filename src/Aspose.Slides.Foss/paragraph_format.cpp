@@ -143,6 +143,12 @@ void ParagraphFormat::init_internal(pugi::xml_node ppr_element,
 pugi::xml_node ParagraphFormat::ensure_ppr() {
     if (ppr_element_) return ppr_element_;
     if (!p_element_) return {};
+    // A bullet set first has already created the element, and is bound to it.
+    // CT_TextParagraph allows one, and PowerPoint refuses a paragraph with two.
+    if (auto existing = p_element_.child("a:pPr")) {
+        ppr_element_ = existing;
+        return ppr_element_;
+    }
     // CT_TextParagraph is (pPr?, (r|br|fld)*, endParaRPr?), so the properties
     // element goes first.
     ppr_element_ = p_element_.prepend_child("a:pPr");

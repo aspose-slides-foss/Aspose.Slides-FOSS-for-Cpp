@@ -9,6 +9,7 @@
 /// served by a different serialiser from a deck loaded off disk. The two
 /// disagree about how much of the formatting model exists.
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -47,6 +48,36 @@ namespace {
 
 constexpr const char* kSlide = "ppt/slides/slide1.xml";
 
+/// The paragraphs of the last shape on the slide, which is where a shape added
+/// to it goes.
+const std::string kNewShapeParagraph = "//p:spTree/p:sp[last()]/p:txBody/a:p";
+
+/// The text of every node the XPath selects in the slide, concatenated.
+std::string saved_text(const conformance::Package& pkg,
+                       const std::string& xpath) {
+    std::string text;
+    for (const auto& node : pkg.xml(kSlide).select_nodes(xpath.c_str())) {
+        text += node.node().text().as_string();
+    }
+    return text;
+}
+
+/// An untouched new slide as PowerPoint saves it; see make_fixtures.py.
+std::string new_slide_fixture() {
+    return (conformance::test_data_dir() / "powerpoint_new_slide.pptx").string();
+}
+
+void set_character_bullet(ParagraphFormat& fmt) {
+    fmt.bullet().set_type(BulletType::SYMBOL);
+    fmt.bullet().set_char("\xE2\x80\xA2"); // U+2022 BULLET
+    fmt.bullet().set_font_name("Arial");
+}
+
+void set_hanging_margins(ParagraphFormat& fmt) {
+    fmt.set_margin_left(22.5); // 22.5 pt -> 285750 EMU
+    fmt.set_indent(-22.5);
+}
+
 class TextBodyConformance : public conformance::SavedDeckTest {
 protected:
     AutoShape& shape_with_text(Presentation& pres, const std::string& text) {
@@ -55,6 +86,25 @@ protected:
             ShapeType::RECTANGLE, 50, 50, 400, 120);
         shape.text_frame()->set_text(text);
         return shape;
+    }
+
+    /// One paragraph carrying a character bullet and hanging margins is one
+    /// `<a:pPr>`, ahead of the text, holding both.
+    static void expect_one_bulleted_ppr(const conformance::Package& pkg,
+                                        const std::string& paragraph) {
+        EXPECT_EQ(conformance::CountMatches(pkg, kSlide, paragraph + "/a:pPr"),
+                  1u)
+            << "CT_TextParagraph allows one a:pPr; PowerPoint refuses a "
+               "paragraph with two";
+        auto children = conformance::ChildNames(
+            pkg.xml(kSlide).select_node(paragraph.c_str()).node());
+        ASSERT_FALSE(children.empty()) << "no paragraph at " << paragraph;
+        EXPECT_EQ(children.front(), "a:pPr");
+        EXPECT_TRUE(conformance::ElementExists(
+            pkg, kSlide, paragraph + "/a:pPr",
+            {{"marL", "285750"}, {"indent", "-285750"}}));
+        EXPECT_TRUE(conformance::ChildOrderIs(pkg, kSlide, paragraph + "/a:pPr",
+                                              {"a:buFont", "a:buChar"}));
     }
 };
 
@@ -255,6 +305,100 @@ TEST_F(TextBodyConformance, TextFrameFormattingSetOnALoadedDeckReachesTheFile) {
                                             {"rIns", "127000"},
                                             {"wrap", "none"}}))
         << "text-frame formatting set on a loaded deck never reached a:bodyPr";
+}
+
+/// `add_text_frame` on a shape added to a deck opened from a file built a text
+/// frame that nothing wrote out. Its text read back from memory, and the shape
+/// was saved holding one empty paragraph.
+TEST_F(TextBodyConformance, TextGivenToANewShapeOnALoadedDeckReachesTheFile) {
+    Presentation pres;
+    auto base = save(pres, "base.pptx");
+
+    Presentation loaded(base.string());
+    auto& shape = loaded.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 50, 400, 120);
+    shape.add_text_frame("Added after loading");
+
+    conformance::Package pkg(save_to(loaded, path_for("edited.pptx")));
+    EXPECT_EQ(saved_text(pkg, kNewShapeParagraph + "/a:r/a:t"),
+              "Added after loading")
+        << "the new shape was saved with an empty text body";
+}
+
+/// The same, on a fixture shaped like a slide PowerPoint saves, with a line break in the text.
+TEST_F(TextBodyConformance, TextGivenToANewShapeOnAPowerPointShapedDeckReachesTheFile) {
+    Presentation loaded(new_slide_fixture());
+    auto& shape = loaded.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 300, 400, 120);
+    shape.add_text_frame("First line\nSecond line");
+
+    auto pkg = save_and_inspect(loaded);
+    EXPECT_EQ(conformance::CountMatches(pkg, kSlide, kNewShapeParagraph), 2u);
+    EXPECT_EQ(saved_text(pkg, kNewShapeParagraph + "[1]/a:r/a:t"), "First line");
+    EXPECT_EQ(saved_text(pkg, kNewShapeParagraph + "[2]/a:r/a:t"),
+              "Second line");
+    EXPECT_TRUE(conformance::PackageIsInternallyConsistent(pkg));
+}
+
+/// A bullet on that new shape is lost with its text, and once the text is
+/// written, setting the bullet before the margins must still give one a:pPr.
+TEST_F(TextBodyConformance, ABulletOnANewShapeOfALoadedDeckReachesTheFile) {
+    Presentation loaded(new_slide_fixture());
+    auto& shape = loaded.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 300, 400, 120);
+    auto& fmt =
+        shape.add_text_frame("Bulleted line").paragraphs()[0].paragraph_format();
+    set_character_bullet(fmt);
+    set_hanging_margins(fmt);
+
+    auto pkg = save_and_inspect(loaded);
+    EXPECT_EQ(saved_text(pkg, kNewShapeParagraph + "/a:r/a:t"), "Bulleted line");
+    expect_one_bulleted_ppr(pkg, kNewShapeParagraph);
+}
+
+/// A loaded paragraph with no `<a:pPr>`: the bullet created one that the
+/// paragraph's own formatting did not know about, so the margins set next
+/// created a second.
+TEST_F(TextBodyConformance, BulletThenMarginsOnALoadedParagraphWriteOnePPr) {
+    Presentation loaded(new_slide_fixture());
+    auto* body = dynamic_cast<AutoShape*>(&loaded.slides()[0].shapes()[1]);
+    ASSERT_NE(body, nullptr);
+    auto& fmt = body->text_frame()->paragraphs()[0].paragraph_format();
+    set_character_bullet(fmt);
+    set_hanging_margins(fmt);
+
+    auto pkg = save_and_inspect(loaded);
+    expect_one_bulleted_ppr(pkg, "//p:spTree/p:sp[2]/p:txBody/a:p");
+}
+
+/// Regression guard: the other order was already right.
+TEST_F(TextBodyConformance, MarginsThenBulletOnALoadedParagraphWriteOnePPr) {
+    Presentation loaded(new_slide_fixture());
+    auto* body = dynamic_cast<AutoShape*>(&loaded.slides()[0].shapes()[1]);
+    ASSERT_NE(body, nullptr);
+    auto& fmt = body->text_frame()->paragraphs()[0].paragraph_format();
+    set_hanging_margins(fmt);
+    set_character_bullet(fmt);
+
+    auto pkg = save_and_inspect(loaded);
+    expect_one_bulleted_ppr(pkg, "//p:spTree/p:sp[2]/p:txBody/a:p");
+}
+
+/// Regression guard: the same calls on a deck built in memory, which a
+/// different serialiser writes and which was already right.
+TEST_F(TextBodyConformance, TextAndBulletOnANewShapeOfAnInMemoryDeckReachTheFile) {
+    Presentation pres;
+    pres.slides()[0].shapes().clear();
+    auto& shape = pres.slides()[0].shapes().add_auto_shape(
+        ShapeType::RECTANGLE, 50, 50, 400, 120);
+    auto& fmt =
+        shape.add_text_frame("Bulleted line").paragraphs()[0].paragraph_format();
+    set_character_bullet(fmt);
+    set_hanging_margins(fmt);
+
+    auto pkg = save_and_inspect(pres);
+    EXPECT_EQ(saved_text(pkg, kNewShapeParagraph + "/a:r/a:t"), "Bulleted line");
+    expect_one_bulleted_ppr(pkg, kNewShapeParagraph);
 }
 
 // -- Portions ---------------------------------------------------------------

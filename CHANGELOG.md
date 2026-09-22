@@ -11,6 +11,23 @@ is a year and carries no compatibility meaning, so `find_package(AsposeSlidesFos
 REQUIRED)` accepts any `26.9.x` and rejects `26.10` — the only promise a monthly release train can
 keep.
 
+## [Unreleased]
+
+### Fixed
+
+- **Text passed to `add_text_frame()` on a deck opened from a file is saved.** The call built a text
+  frame that was never attached to the shape in the file: `text_frame()->text()` returned the text,
+  the save reported success, and the shape was written with one empty paragraph. Anything set on
+  that frame afterwards — a bullet, paragraph or text-frame formatting — was lost with it. The new
+  frame now replaces the shape's `<p:txBody>`, so the text and its formatting reach the file.
+  As on a new shape, the replacement is the default text body: on a shape that already had one,
+  such as a placeholder, its own body properties are not kept, so its text is centred vertically.
+- **Setting a bullet before a paragraph's margins no longer produces a file PowerPoint refuses.** On
+  a paragraph opened from a file with no `<a:pPr>`, setting a bullet property and then a paragraph
+  property such as a margin or the indent wrote two `<a:pPr>` elements into one `<a:p>`. A paragraph
+  may have only one, and PowerPoint would not open the file. Both now go into the same `<a:pPr>`,
+  whichever is set first.
+
 ## [26.9.0] - 2026-09-14
 
 This is the first entry. The library existed before it, but it wrote files that were wrong in ways
@@ -253,4 +270,5 @@ the ones most likely to surprise someone, because the API accepts the call:
 - **No charts, SmartArt, OLE objects, mathematical text, animations, transitions, VBA macros or
   digital signatures**, and no rendering or conversion of any kind.
 
+[Unreleased]: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/compare/v26.9.0...HEAD
 [26.9.0]: https://github.com/aspose-slides-foss/Aspose.Slides-FOSS-for-Cpp/releases/tag/v26.9.0

@@ -121,11 +121,18 @@ not write: hand-authored OOXML, with placeholders that carry a bare
 other `.pptx` path in the test tree names a file the library produced seconds
 earlier, so the load path had never been fed anything but its own output.
 
-Regenerate it with:
+`tests/test_data/powerpoint_new_slide.pptx` is the same package with the slide
+replaced by one in the form PowerPoint saves a slide it has just inserted: two
+empty placeholders whose paragraphs are only `<a:endParaRPr>`, and the
+`a:extLst` / `p:extLst` extensions PowerPoint adds. It is the base for editing
+a deck that nobody has typed into yet.
+
+Regenerate both with:
 
 ```sh
 python tests/conformance/make_fixtures.py
 python tests/conformance/validate.py tests/test_data/powerpoint_title_and_content.pptx
+python tests/conformance/validate.py tests/test_data/powerpoint_new_slide.pptx
 ```
 
 The generator is deterministic — fixed timestamps, fixed member order — so a

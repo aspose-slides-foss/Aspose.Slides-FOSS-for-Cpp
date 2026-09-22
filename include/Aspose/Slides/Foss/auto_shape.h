@@ -43,6 +43,7 @@ public:
 
 private:
     std::unique_ptr<TextFrame> text_frame_;
+    Internal::pptx::SlidePart* slide_part_ = nullptr;
 };
 
 } // namespace Aspose::Slides::Foss

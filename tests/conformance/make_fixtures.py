@@ -231,6 +231,61 @@ def _slide() -> str:
     )
 
 
+def _empty_placeholder_sp(
+    shape_id: int, name: str, ph_attrs: str, creation_id: str
+) -> str:
+    """A placeholder nobody has typed into yet, in the form PowerPoint saves it.
+
+    It differs from ``_placeholder_sp`` in the details PowerPoint adds and a
+    hand-written deck leaves out: an ``a:extLst`` inside ``p:cNvPr``, and a
+    paragraph that is nothing but ``<a:endParaRPr>`` -- no ``a:pPr``, no run.
+    """
+    return (
+        "<p:sp>"
+        "<p:nvSpPr>"
+        f'<p:cNvPr id="{shape_id}" name="{name}">'
+        '<a:extLst><a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">'
+        '<a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main"'
+        f' id="{creation_id}"/>'
+        "</a:ext></a:extLst>"
+        "</p:cNvPr>"
+        "<p:cNvSpPr><a:spLocks noGrp=\"1\"/></p:cNvSpPr>"
+        f"<p:nvPr><p:ph {ph_attrs}/></p:nvPr>"
+        "</p:nvSpPr>"
+        "<p:spPr/>"
+        '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody>'
+        "</p:sp>"
+    )
+
+
+def _new_slide() -> str:
+    """A slide as PowerPoint saves it straight after inserting it.
+
+    Two empty placeholders, and the slide's own ``p:extLst`` after the shape
+    tree. Shapes added to this slide go into a tree that is followed by an
+    extension list, and text set on its placeholders goes into paragraphs that
+    carry no ``a:pPr`` at all.
+    """
+    shapes = _empty_placeholder_sp(
+        2, "Title 1", 'type="title"', "{6A1C2E47-0D3B-4F6E-9B21-3C5D7E8F9A01}"
+    ) + _empty_placeholder_sp(
+        3, "Content Placeholder 2", 'idx="1"', "{6A1C2E47-0D3B-4F6E-9B21-3C5D7E8F9A02}"
+    )
+    return (
+        DECL
+        + f"<p:sld {NS_P} {NS_A} {NS_R}>"
+        + "<p:cSld>"
+        + _sp_tree(shapes)
+        + '<p:extLst><p:ext uri="{BB962C8B-B14F-4D97-AF65-F5344CB8AC3E}">'
+          '<p14:creationId xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"'
+          ' val="1000000001"/>'
+          "</p:ext></p:extLst>"
+        + "</p:cSld>"
+        + "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"
+        + "</p:sld>"
+    )
+
+
 def _presentation() -> str:
     return (
         DECL
@@ -346,6 +401,14 @@ def title_and_content_deck() -> dict[str, str]:
     }
 
 
+def new_slide_deck() -> dict[str, str]:
+    """The parts of ``powerpoint_new_slide.pptx``: the same package with the
+    slide replaced by an untouched new one."""
+    parts = title_and_content_deck()
+    parts["ppt/slides/slide1.xml"] = _new_slide()
+    return parts
+
+
 def write_deck(path: pathlib.Path, parts: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -357,9 +420,13 @@ def write_deck(path: pathlib.Path, parts: dict[str, str]) -> None:
 
 
 def main() -> None:
-    target = OUT_DIR / "powerpoint_title_and_content.pptx"
-    write_deck(target, title_and_content_deck())
-    print(f"wrote {target} ({target.stat().st_size} bytes)")
+    for name, parts in (
+        ("powerpoint_title_and_content.pptx", title_and_content_deck()),
+        ("powerpoint_new_slide.pptx", new_slide_deck()),
+    ):
+        target = OUT_DIR / name
+        write_deck(target, parts)
+        print(f"wrote {target} ({target.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
