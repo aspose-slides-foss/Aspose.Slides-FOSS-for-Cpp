@@ -23,9 +23,25 @@
 
 namespace Aspose::Slides::Foss::Internal::pptx {
 
-/// EMU conversion factor: 1 cm = 360 000 EMU.
-/// Comment positions in PPTX are stored in EMU; the public API uses cm.
-inline constexpr double kCmToEmu = 360000.0;
+/// PowerPoint's unit for a comment's `p:pos`, per centimetre.
+///
+/// The schema types `p:pos` as `a:CT_Point2D`, in EMU, but PowerPoint writes
+/// and reads it in eighths of a point, 576 to the inch: a comment it places
+/// 10 pt from the corner of the slide is written `x="80" y="80"`. Written in
+/// EMU, a position is 1587.5 times too large and lands far outside the slide.
+/// The public API gives a comment's position in centimetres from the top-left
+/// corner of the slide.
+inline constexpr double kCommentPosUnitsPerCm = 576.0 / 2.54;
+
+/// Converts a comment coordinate in centimetres to the value written in `p:pos`.
+[[nodiscard]] inline int64_t cm_to_comment_pos(double cm) {
+    return static_cast<int64_t>(std::round(cm * kCommentPosUnitsPerCm));
+}
+
+/// Converts a `p:pos` coordinate to centimetres.
+[[nodiscard]] inline double comment_pos_to_cm(int64_t units) {
+    return static_cast<double>(units) / kCommentPosUnitsPerCm;
+}
 
 // ---------------------------------------------------------------------------
 // Free-standing datetime helpers
@@ -103,11 +119,13 @@ public:
     [[nodiscard]] std::string text() const;
     void set_text(std::string_view value);
 
-    /// Position X in centimeters (converted from EMU).
+    /// Position X in centimeters (converted from PowerPoint's unit; see
+    /// kCommentPosUnitsPerCm).
     [[nodiscard]] double pos_x() const;
     void set_pos_x(double value);
 
-    /// Position Y in centimeters (converted from EMU).
+    /// Position Y in centimeters (converted from PowerPoint's unit; see
+    /// kCommentPosUnitsPerCm).
     [[nodiscard]] double pos_y() const;
     void set_pos_y(double value);
 

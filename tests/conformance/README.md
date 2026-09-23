@@ -127,12 +127,20 @@ empty placeholders whose paragraphs are only `<a:endParaRPr>`, and the
 `a:extLst` / `p:extLst` extensions PowerPoint adds. It is the base for editing
 a deck that nobody has typed into yet.
 
-Regenerate both with:
+`tests/test_data/powerpoint_comment_reply.pptx` is the first package with one
+comment and one reply to it added, in exactly the markup PowerPoint writes: the
+comment at 10 pt by 10 pt (`<p:pos x="80" y="80"/>`, since PowerPoint's unit
+for a comment's position is an eighth of a point), the reply 12 pt lower and
+threaded through `p15:threadingInfo/p15:parentCm`, with the parts named and
+wired as PowerPoint names and wires them.
+
+Regenerate all three with:
 
 ```sh
 python tests/conformance/make_fixtures.py
 python tests/conformance/validate.py tests/test_data/powerpoint_title_and_content.pptx
 python tests/conformance/validate.py tests/test_data/powerpoint_new_slide.pptx
+python tests/conformance/validate.py tests/test_data/powerpoint_comment_reply.pptx
 ```
 
 The generator is deterministic — fixed timestamps, fixed member order — so a

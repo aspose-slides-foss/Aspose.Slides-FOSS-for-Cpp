@@ -34,9 +34,11 @@ public:
     /// Returns the author of this comment. Read-only.
     [[nodiscard]] virtual CommentAuthor* author() const = 0;
 
-    /// Returns the position of this comment on the slide.
+    /// Returns the position of this comment, in centimetres from the top-left
+    /// corner of the slide.
     [[nodiscard]] virtual Drawing::PointF position() const = 0;
-    /// Sets the position of this comment on the slide.
+    /// Sets the position of this comment, in centimetres from the top-left
+    /// corner of the slide.
     virtual void set_position(Drawing::PointF value) = 0;
 
     /// Returns the parent comment, or nullptr if none.

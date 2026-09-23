@@ -192,7 +192,7 @@ void CommentData::set_text(std::string_view value) {
 double CommentData::pos_x() const {
     auto pos = node_.child(kPosTag.c_str());
     if (pos) {
-        return pos.attribute("x").as_int(0) / kCmToEmu;
+        return comment_pos_to_cm(pos.attribute("x").as_llong(0));
     }
     return 0.0;
 }
@@ -202,7 +202,7 @@ void CommentData::set_pos_x(double value) {
     if (!pos) {
         pos = node_.append_child(kPosTag.c_str());
     }
-    auto x_val = static_cast<int64_t>(std::round(value * kCmToEmu));
+    auto x_val = cm_to_comment_pos(value);
     pos.attribute("x").set_value(x_val);
     if (pos.attribute("x").empty()) {
         pos.append_attribute("x") = x_val;
@@ -212,7 +212,7 @@ void CommentData::set_pos_x(double value) {
 double CommentData::pos_y() const {
     auto pos = node_.child(kPosTag.c_str());
     if (pos) {
-        return pos.attribute("y").as_int(0) / kCmToEmu;
+        return comment_pos_to_cm(pos.attribute("y").as_llong(0));
     }
     return 0.0;
 }
@@ -222,7 +222,7 @@ void CommentData::set_pos_y(double value) {
     if (!pos) {
         pos = node_.append_child(kPosTag.c_str());
     }
-    auto y_val = static_cast<int64_t>(std::round(value * kCmToEmu));
+    auto y_val = cm_to_comment_pos(value);
     auto attr = pos.attribute("y");
     if (attr.empty()) {
         pos.append_attribute("y") = y_val;
@@ -310,8 +310,8 @@ CommentData CommentsPart::add_comment(int32_t author_id, int32_t idx,
     elem.append_attribute("idx") = idx;
 
     auto pos = elem.append_child(kPosTag.c_str());
-    pos.append_attribute("x") = static_cast<int64_t>(std::round(pos_x * kCmToEmu));
-    pos.append_attribute("y") = static_cast<int64_t>(std::round(pos_y * kCmToEmu));
+    pos.append_attribute("x") = cm_to_comment_pos(pos_x);
+    pos.append_attribute("y") = cm_to_comment_pos(pos_y);
 
     auto text_node = elem.append_child(kTextTag.c_str());
     text_node.text().set(std::string(text).c_str());
@@ -337,8 +337,8 @@ CommentData CommentsPart::insert_comment(int32_t index, int32_t author_id,
     elem.append_attribute("idx") = idx;
 
     auto pos = elem.append_child(kPosTag.c_str());
-    pos.append_attribute("x") = static_cast<int64_t>(std::round(pos_x * kCmToEmu));
-    pos.append_attribute("y") = static_cast<int64_t>(std::round(pos_y * kCmToEmu));
+    pos.append_attribute("x") = cm_to_comment_pos(pos_x);
+    pos.append_attribute("y") = cm_to_comment_pos(pos_y);
 
     auto text_node = elem.append_child(kTextTag.c_str());
     text_node.text().set(std::string(text).c_str());

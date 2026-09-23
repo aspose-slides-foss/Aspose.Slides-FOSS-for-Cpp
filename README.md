@@ -409,7 +409,8 @@ pres.save("notes.pptx", SaveFormat::PPTX);
 
 Add a comment through `CommentAuthorCollection`/`CommentCollection`, then a reply linked to it via
 `set_parent_comment()` — the reply is written into the same classic comment list, carrying a
-`p15:parentCm` in its extension list, not a separate `ppt/threadedComments/` part:
+`p15:parentCm` in its extension list, not a separate `ppt/threadedComments/` part. A comment's
+position is in centimetres from the top-left corner of the slide:
 
 ```cpp
 #include <Aspose/Slides/Foss/presentation.h>

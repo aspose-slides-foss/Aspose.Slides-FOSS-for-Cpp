@@ -15,6 +15,10 @@ using namespace Aspose::Slides::Foss::Internal::pptx;
 
 namespace {
 
+/// A position is stored to the nearest eighth of a point, so a centimetre
+/// value reads back within half of one: 2.54 / 576 / 2 cm.
+constexpr double kHalfPosUnitCm = 2.54 / 576.0 / 2.0;
+
 /// Helper: create a minimal empty comments XML and store it in the package.
 void seed_empty_comments(opc::InMemoryOpcPackage& pkg,
                          const std::string& part_name) {
@@ -31,7 +35,7 @@ void seed_two_comments(opc::InMemoryOpcPackage& pkg,
     std::string xml = R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:cmLst xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
   <p:cm authorId="0" dt="2024-03-15T10:30:00.000" idx="1">
-    <p:pos x="360000" y="720000"/>
+    <p:pos x="576" y="1152"/>
     <p:text>First comment</p:text>
   </p:cm>
   <p:cm authorId="1" dt="2024-03-15T11:00:00.000" idx="2">
@@ -90,8 +94,10 @@ TEST(CommentDataTest, ReadAttributes) {
     EXPECT_EQ(comments[0].idx(), 1);
     EXPECT_EQ(comments[0].dt_str(), "2024-03-15T10:30:00.000");
     EXPECT_EQ(comments[0].text(), "First comment");
-    EXPECT_DOUBLE_EQ(comments[0].pos_x(), 1.0);  // 360000 / 360000
-    EXPECT_DOUBLE_EQ(comments[0].pos_y(), 2.0);  // 720000 / 360000
+    // PowerPoint writes a comment position in eighths of a point: 576 is one
+    // inch, 2.54 cm.
+    EXPECT_NEAR(comments[0].pos_x(), 2.54, 1e-9);
+    EXPECT_NEAR(comments[0].pos_y(), 5.08, 1e-9);
     EXPECT_FALSE(comments[0].parent_comment().has_value());
 
     EXPECT_EQ(comments[1].author_id(), 1);
@@ -144,8 +150,8 @@ TEST(CommentDataTest, SetPosition) {
     auto comments = part.get_comments();
     comments[0].set_pos_x(5.5);
     comments[0].set_pos_y(3.25);
-    EXPECT_DOUBLE_EQ(comments[0].pos_x(), 5.5);
-    EXPECT_DOUBLE_EQ(comments[0].pos_y(), 3.25);
+    EXPECT_NEAR(comments[0].pos_x(), 5.5, kHalfPosUnitCm);
+    EXPECT_NEAR(comments[0].pos_y(), 3.25, kHalfPosUnitCm);
 }
 
 // ---------------------------------------------------------------------------
@@ -221,8 +227,8 @@ TEST(CommentsPartTest, AddComment) {
     EXPECT_EQ(cd.text(), "New comment");
     EXPECT_EQ(cd.author_id(), 0);
     EXPECT_EQ(cd.idx(), 1);
-    EXPECT_DOUBLE_EQ(cd.pos_x(), 2.5);
-    EXPECT_DOUBLE_EQ(cd.pos_y(), 3.0);
+    EXPECT_NEAR(cd.pos_x(), 2.5, kHalfPosUnitCm);
+    EXPECT_NEAR(cd.pos_y(), 3.0, kHalfPosUnitCm);
     EXPECT_FALSE(cd.parent_comment().has_value());
 }
 
@@ -333,8 +339,8 @@ TEST(CommentsPartTest, Save) {
     EXPECT_EQ(reloaded.count(), 1);
     auto comments = reloaded.get_comments();
     EXPECT_EQ(comments[0].text(), "Saved comment");
-    EXPECT_DOUBLE_EQ(comments[0].pos_x(), 1.0);
-    EXPECT_DOUBLE_EQ(comments[0].pos_y(), 2.0);
+    EXPECT_NEAR(comments[0].pos_x(), 1.0, kHalfPosUnitCm);
+    EXPECT_NEAR(comments[0].pos_y(), 2.0, kHalfPosUnitCm);
 }
 
 // ---------------------------------------------------------------------------

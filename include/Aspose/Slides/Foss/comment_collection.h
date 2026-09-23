@@ -31,12 +31,14 @@ public:
     CommentCollection(CommentCollection&&) noexcept;
     CommentCollection& operator=(CommentCollection&&) noexcept;
 
-    /// Adds a new comment and returns a reference to it.
+    /// Adds a new comment and returns a reference to it. `position` is in
+    /// centimetres from the top-left corner of the slide.
     Comment& add_comment(const std::string& text, Slide& slide,
                          Drawing::PointF position,
                          std::chrono::system_clock::time_point created_time) override;
 
     /// Inserts a comment at the given index and returns a reference to it.
+    /// `position` is in centimetres from the top-left corner of the slide.
     Comment& insert_comment(std::size_t index, const std::string& text,
                             Slide& slide, Drawing::PointF position,
                             std::chrono::system_clock::time_point created_time) override;

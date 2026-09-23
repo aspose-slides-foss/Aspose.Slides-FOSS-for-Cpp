@@ -313,9 +313,12 @@ def _rels(entries: list[tuple[str, str, str]]) -> str:
     return DECL + f"<Relationships {REL_NS}>{body}</Relationships>"
 
 
-def _content_types() -> str:
+PML = "application/vnd.openxmlformats-officedocument.presentationml"
+
+
+def _content_types(extra: tuple[tuple[str, str], ...] = ()) -> str:
     ct = "http://schemas.openxmlformats.org/package/2006/content-types"
-    pml = "application/vnd.openxmlformats-officedocument.presentationml"
+    pml = PML
     dml = "application/vnd.openxmlformats-officedocument"
     overrides = [
         ("/ppt/presentation.xml", f"{pml}.presentation.main+xml"),
@@ -325,6 +328,7 @@ def _content_types() -> str:
         ("/ppt/theme/theme1.xml", f"{dml}.theme+xml"),
         ("/docProps/core.xml", "application/vnd.openxmlformats-package.core-properties+xml"),
         ("/docProps/app.xml", f"{dml}.extended-properties+xml"),
+        *extra,
     ]
     body = (
         '<Default Extension="rels"'
@@ -409,6 +413,99 @@ def new_slide_deck() -> dict[str, str]:
     return parts
 
 
+NS_P15 = 'xmlns:p15="http://schemas.microsoft.com/office/powerpoint/2012/main"'
+THREADING_URI = "{C676402C-5697-4E1C-873F-D02D1690AC5C}"
+
+
+def _powerpoint_comment_authors() -> str:
+    """The comment-author list PowerPoint writes for one author."""
+    return (
+        DECL
+        + f"<p:cmAuthorLst {NS_A} {NS_R} {NS_P}>"
+        '<p:cmAuthor id="1" name="Alice Ref" initials="AR" lastIdx="2" clrIdx="0">'
+        '<p:extLst><p:ext uri="{19B8F6BF-5375-455C-9EA6-DF929625EA0E}">'
+        f'<p15:presenceInfo {NS_P15} userId="Alice Ref" providerId="None"/>'
+        "</p:ext></p:extLst>"
+        "</p:cmAuthor>"
+        "</p:cmAuthorLst>"
+    )
+
+
+def _powerpoint_comments() -> str:
+    """One comment and one reply to it, in the markup PowerPoint writes.
+
+    Added in PowerPoint with the comment at 10 pt from the left and 10 pt from
+    the top of the slide; PowerPoint put the reply 12 pt lower.  ``p:pos`` is
+    in PowerPoint's comment unit, an eighth of a point, so 10 pt is written
+    ``80`` and 22 pt ``176``.  The reply names its parent in
+    ``p15:threadingInfo/p15:parentCm``; the parent's ``threadingInfo`` is empty.
+    """
+
+    def cm(idx: int, dt: str, x: int, y: int, text: str, parent: str) -> str:
+        return (
+            f'<p:cm authorId="1" dt="{dt}" idx="{idx}">'
+            f'<p:pos x="{x}" y="{y}"/>'
+            f"<p:text>{text}</p:text>"
+            f'<p:extLst><p:ext uri="{THREADING_URI}">'
+            + (
+                f'<p15:threadingInfo {NS_P15} timeZoneBias="-240">{parent}</p15:threadingInfo>'
+                if parent
+                else f'<p15:threadingInfo {NS_P15} timeZoneBias="-240"/>'
+            )
+            + "</p:ext></p:extLst>"
+            "</p:cm>"
+        )
+
+    return (
+        DECL
+        + f"<p:cmLst {NS_A} {NS_R} {NS_P}>"
+        + cm(1, "2026-09-23T13:59:25.986", 80, 80, "Parent comment", "")
+        + cm(
+            2,
+            "2026-09-23T13:59:26.025",
+            80,
+            176,
+            "Reply to parent",
+            '<p15:parentCm authorId="1" idx="1"/>',
+        )
+        + "</p:cmLst>"
+    )
+
+
+def comment_reply_deck() -> dict[str, str]:
+    """The parts of ``powerpoint_comment_reply.pptx``: the title-and-content
+    package carrying PowerPoint's own comment and reply on its slide.
+
+    The comment parts are named and wired as PowerPoint names and wires them,
+    ``ppt/comments/comment1.xml`` from the slide and ``ppt/commentAuthors.xml``
+    from the presentation.
+    """
+    parts = title_and_content_deck()
+    parts["[Content_Types].xml"] = _content_types(
+        (
+            ("/ppt/commentAuthors.xml", f"{PML}.commentAuthors+xml"),
+            ("/ppt/comments/comment1.xml", f"{PML}.comments+xml"),
+        )
+    )
+    parts["ppt/_rels/presentation.xml.rels"] = _rels(
+        [
+            ("rId1", "slideMaster", "slideMasters/slideMaster1.xml"),
+            ("rId2", "slide", "slides/slide1.xml"),
+            ("rId3", "theme", "theme/theme1.xml"),
+            ("rId4", "commentAuthors", "commentAuthors.xml"),
+        ]
+    )
+    parts["ppt/slides/_rels/slide1.xml.rels"] = _rels(
+        [
+            ("rId1", "slideLayout", "../slideLayouts/slideLayout1.xml"),
+            ("rId2", "comments", "../comments/comment1.xml"),
+        ]
+    )
+    parts["ppt/commentAuthors.xml"] = _powerpoint_comment_authors()
+    parts["ppt/comments/comment1.xml"] = _powerpoint_comments()
+    return parts
+
+
 def write_deck(path: pathlib.Path, parts: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -423,6 +520,7 @@ def main() -> None:
     for name, parts in (
         ("powerpoint_title_and_content.pptx", title_and_content_deck()),
         ("powerpoint_new_slide.pptx", new_slide_deck()),
+        ("powerpoint_comment_reply.pptx", comment_reply_deck()),
     ):
         target = OUT_DIR / name
         write_deck(target, parts)

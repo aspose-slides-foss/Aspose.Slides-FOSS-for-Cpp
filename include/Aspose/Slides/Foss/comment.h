@@ -43,9 +43,11 @@ public:
     /// Returns the author of this comment. Read-only.
     [[nodiscard]] CommentAuthor* author() const noexcept override;
 
-    /// Returns the position of this comment on the slide.
+    /// Returns the position of this comment, in centimetres from the top-left
+    /// corner of the slide.
     [[nodiscard]] Drawing::PointF position() const noexcept override;
-    /// Sets the position of this comment on the slide.
+    /// Sets the position of this comment, in centimetres from the top-left
+    /// corner of the slide.
     void set_position(Drawing::PointF value) noexcept override;
 
     /// Returns the parent comment, or nullptr if none.
