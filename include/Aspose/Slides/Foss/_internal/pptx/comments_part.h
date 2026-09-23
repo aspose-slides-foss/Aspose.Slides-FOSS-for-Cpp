@@ -119,12 +119,12 @@ public:
     [[nodiscard]] std::string text() const;
     void set_text(std::string_view value);
 
-    /// Position X in centimeters (converted from PowerPoint's unit; see
+    /// Position X in centimetres (converted from PowerPoint's unit; see
     /// kCommentPosUnitsPerCm).
     [[nodiscard]] double pos_x() const;
     void set_pos_x(double value);
 
-    /// Position Y in centimeters (converted from PowerPoint's unit; see
+    /// Position Y in centimetres (converted from PowerPoint's unit; see
     /// kCommentPosUnitsPerCm).
     [[nodiscard]] double pos_y() const;
     void set_pos_y(double value);

@@ -18,10 +18,11 @@ keep.
 - **Comment positions saved by earlier versions read back far too large.** Earlier versions wrote a
   comment's `p:pos` in EMU; it is now read in PowerPoint's unit, so a comment saved by an earlier
   version of this library reads back from `position()` 1587.5 times further from the corner along
-  each axis than it was given. Saving such a deck again writes the same `p:pos` value back, so the
-  comment stays where PowerPoint already showed it, off the slide, until `set_position()` moves it.
-  A comment written by PowerPoint now reads back where PowerPoint placed it. See *Comments are
-  placed on the slide* under Fixed.
+  each axis than it was given. Saving such a deck again writes the same `p:pos` value back —
+  exactly for a position given within about 41 cm of the corner, and to within a few units beyond
+  that — so the comment stays where PowerPoint already showed it, off the slide, until
+  `set_position()` moves it. A comment written by PowerPoint now reads back where PowerPoint placed
+  it. See *Comments are placed on the slide* under Fixed.
 
 ### Fixed
 
@@ -33,7 +34,6 @@ keep.
   `add_comment()` and `insert_comment()` and returned by `position()` is, as it always was, in
   centimetres from the top-left corner of the slide — this is now documented — and it is now written
   in PowerPoint's unit and read back from it, to the nearest eighth of a point.
-
 - **Text passed to `add_text_frame()` on a deck opened from a file is saved.** The call built a text
   frame that was never attached to the shape in the file: `text_frame()->text()` returned the text,
   the save reported success, and the shape was written with one empty paragraph. Anything set on
